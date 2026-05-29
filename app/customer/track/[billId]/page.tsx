@@ -7,8 +7,6 @@ import { useOrder } from '@/hooks/useOrder'
 import { Button } from '@/components/ui/button'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import useSound from 'use-sound'
-import { ORDER_STATUS_SOUND } from '@/constants/sounds'
 import { toast } from 'sonner'
 import { useCartStore } from '@/store/cartStore'
 import { AddMoreReminder } from '@/components/customer/AddMoreReminder'
@@ -20,9 +18,19 @@ import { QRCodeSVG } from 'qrcode.react'
 const STATUS_STEPS = [
     { id: 'confirmed', label: 'Order Confirmed', description: 'We\'ve received your order!', icon: CheckCircle2, color: 'text-blue-500', bg: 'bg-blue-500/10' },
     { id: 'preparing', label: 'Cooking with Love', description: 'Chefs are working their magic.', icon: ChefHat, color: 'text-orange-500', bg: 'bg-orange-500/10' },
+    { id: 'partially_ready', label: 'Almost There', description: 'Some items are ready!', icon: ChefHat, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
     { id: 'ready', label: 'Ready to Serve', description: 'Plating up your delicious meal.', icon: Utensils, color: 'text-purple-500', bg: 'bg-purple-500/10' },
     { id: 'served', label: 'Bon Appétit!', description: 'Enjoy your meal.', icon: PartyPopper, color: 'text-green-500', bg: 'bg-green-500/10' },
 ]
+
+const ITEM_STATUS_CONFIG: Record<string, { label: string, color: string, bg: string, border: string }> = {
+    pending: { label: 'In Queue', color: 'text-slate-600', bg: 'bg-slate-100', border: 'border-slate-200' },
+    preparing: { label: 'Preparing', color: 'text-orange-700', bg: 'bg-orange-100', border: 'border-orange-200' },
+    ready: { label: 'Ready', color: 'text-green-700', bg: 'bg-green-100', border: 'border-green-200' },
+    served: { label: 'Served', color: 'text-blue-700', bg: 'bg-blue-100', border: 'border-blue-200' },
+    completed: { label: 'Served', color: 'text-blue-700', bg: 'bg-blue-100', border: 'border-blue-200' },
+    cancelled: { label: 'Cancelled', color: 'text-red-700', bg: 'bg-red-100', border: 'border-red-200' }
+}
 
 export default function TrackOrderPage() {
     const params = useParams()
@@ -36,25 +44,16 @@ export default function TrackOrderPage() {
     const [whatsappLink, setWhatsappLink] = useState<string | null>(null)
     const [showPaymentDialog, setShowPaymentDialog] = useState(false)
     const [paymentStep, setPaymentStep] = useState<'select' | 'upi_qr'>('select')
-
-    // Sounds
-    const [playConfirmed] = useSound(ORDER_STATUS_SOUND.confirmed)
-    const [playPreparing] = useSound(ORDER_STATUS_SOUND.preparing)
-    const [playReady] = useSound(ORDER_STATUS_SOUND.ready)
-    const [playServed] = useSound(ORDER_STATUS_SOUND.served)
-    const [playCancelled] = useSound(ORDER_STATUS_SOUND.cancelled)
+    // Sound removed due to missing assets (404 errors)
+    // Audio will be re-added once appropriate assets are placed in /public/sounds/
 
     useEffect(() => {
         if (order?.status) {
             switch (order.status) {
-                case 'confirmed': playConfirmed(); break;
-                case 'preparing': playPreparing(); break;
-                case 'ready': playReady(); break;
-                case 'served': playServed(); setShowConfetti(true); break;
-                case 'cancelled': playCancelled(); break;
+                case 'served': setShowConfetti(true); break;
             }
         }
-    }, [order?.status, playConfirmed, playPreparing, playReady, playServed, playCancelled])
+    }, [order?.status])
 
     useEffect(() => {
         const loadWhatsAppLink = async () => {
@@ -116,6 +115,28 @@ export default function TrackOrderPage() {
                 <Button
                     onClick={() => router.push('/customer/menu')}
                     className="rounded-full px-10 h-14 bg-red-600 hover:bg-red-700 text-white font-bold shadow-lg shadow-red-200 transition-transform active:scale-95"
+                >
+                    Return to Menu
+                </Button>
+            </div>
+        )
+    }
+
+    if (order.payment_status === 'paid') {
+        return (
+            <div className="min-h-screen bg-green-50 flex flex-col items-center justify-center p-8 text-center space-y-8">
+                <div className="w-32 h-32 bg-green-100 rounded-full flex items-center justify-center animate-bounce duration-1000">
+                    <div className="w-24 h-24 bg-green-200 rounded-full flex items-center justify-center">
+                        <CheckCircle2 className="w-12 h-12 text-green-700" />
+                    </div>
+                </div>
+                <div>
+                    <h1 className="text-3xl font-black text-green-900 tracking-tight">Payment completed successfully.</h1>
+                    <p className="text-green-700/80 mt-3 font-medium text-lg">Thank you for your payment.<br/>Have a nice day.</p>
+                </div>
+                <Button
+                    onClick={() => router.push('/customer/menu')}
+                    className="rounded-full px-10 h-14 bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg shadow-green-200 transition-transform active:scale-95"
                 >
                     Return to Menu
                 </Button>
@@ -242,54 +263,66 @@ export default function TrackOrderPage() {
                     </div>
                 </div>
 
-                {/* Timeline */}
-                <div className="relative py-4">
-                    <div className="absolute left-7 top-0 bottom-0 w-0.5 bg-slate-200/70 rounded-full" />
-                    <div className="space-y-8 relative">
-                        {STATUS_STEPS.map((step, index) => {
-                            const isCurrent = index === currentStepIndex
-                            const isPast = index < currentStepIndex || isCompleted
 
+
+                {/* Item-Level Live Tracking */}
+                <div className="bg-white rounded-3xl p-6 shadow-xl border border-slate-100 relative z-10">
+                    <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">
+                        <ChefHat className="w-5 h-5 text-orange-500" /> Live Kitchen Tracking
+                    </h2>
+                    
+                    <div className="space-y-3">
+                        {items.map((item) => {
+                            const statusConfig = ITEM_STATUS_CONFIG[item.status] || ITEM_STATUS_CONFIG['pending']
+                            
                             return (
-                                <motion.div
-                                    key={step.id}
-                                    initial={{ x: -10, opacity: 0 }}
-                                    animate={{ x: 0, opacity: 1 }}
-                                    transition={{ delay: index * 0.1 }}
-                                    className="flex items-center gap-6 relative"
-                                >
-                                    {/* Icon Bubble */}
-                                    <div className={cn(
-                                        "w-14 h-14 rounded-full flex items-center justify-center border-4 relative z-10 transition-all duration-500 shrink-0",
-                                        isCurrent ? "bg-orange-500 border-orange-500 shadow-xl scale-110" :
-                                            isPast ? "bg-orange-500 border-orange-500 shadow-md" :
-                                                "bg-slate-100 border-slate-100"
-                                    )}>
-                                        {isPast ? (
-                                            <CheckCircle2 className="w-6 h-6 text-white" />
-                                        ) : (
-                                            <step.icon className={cn(
-                                                "w-6 h-6 transition-colors",
-                                                isCurrent ? "text-white" : "text-slate-400"
-                                            )} />
-                                        )}
+                                <div key={item.id} className={cn(
+                                    "flex items-center justify-between p-4 rounded-2xl border transition-all duration-500",
+                                    statusConfig.bg, statusConfig.border
+                                )}>
+                                    <div className="flex items-center gap-3">
+                                        <div className={cn(
+                                            "w-2 h-2 rounded-full animate-pulse",
+                                            item.status === 'ready' ? 'bg-green-500' :
+                                            item.status === 'preparing' ? 'bg-orange-500' :
+                                            item.status === 'served' ? 'bg-blue-500' : 'bg-slate-400'
+                                        )} />
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-slate-800 flex items-center gap-2">
+                                                <span className="text-xs font-black text-slate-400 bg-white px-1.5 py-0.5 rounded-md shadow-sm">{item.quantity}x</span>
+                                                {item.item_name}
+                                            </span>
+                                            {item.special_instructions && (
+                                                <span className="text-[10px] text-slate-500 italic mt-0.5">Note: {item.special_instructions}</span>
+                                            )}
+                                        </div>
                                     </div>
-
-                                    {/* Text */}
+                                    
                                     <div className={cn(
-                                        "flex-1 p-4 rounded-xl transition-all duration-300",
-                                        isCurrent ? "" : "opacity-60 grayscale-[0.5]"
+                                        "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm",
+                                        statusConfig.bg.replace('100', '200'), statusConfig.color
                                     )}>
-                                        <h3 className={cn(
-                                            "font-bold text-sm text-slate-600"
-                                        )}>
-                                            {step.label}
-                                        </h3>
-                                        <p className="text-xs text-slate-400 mt-0.5">{step.description}</p>
+                                        {statusConfig.label}
                                     </div>
-                                </motion.div>
+                                </div>
                             )
                         })}
+                    </div>
+                    
+                    {/* Auto Text Notification Logic */}
+                    <div className="mt-6 pt-4 border-t border-dashed border-slate-200">
+                        <div className="bg-blue-50 text-blue-800 p-4 rounded-2xl flex items-start gap-3">
+                            <MessageCircle className="w-5 h-5 mt-0.5 shrink-0 text-blue-500" />
+                            <p className="font-medium text-sm">
+                                {order.status === 'ready' 
+                                    ? "Your order is ready for serving! Staff will be with you shortly." 
+                                    : order.status === 'served'
+                                    ? "Enjoy your meal! Let us know if you need anything else."
+                                    : items.some(i => i.status === 'ready') 
+                                    ? `${items.find(i => i.status === 'ready')?.item_name} is ready.` 
+                                    : "We are preparing your order. Your items will update here live!"}
+                            </p>
+                        </div>
                     </div>
                 </div>
 
@@ -398,11 +431,11 @@ export default function TrackOrderPage() {
                     </Button>
                     <Button
                         variant="outline"
-                        disabled={isFinishing || order.payment_status === 'requested' || order.payment_status === 'paid'}
+                        disabled={isFinishing || order.payment_status === 'requested'}
                         className="flex-1 h-12 rounded-[1.5rem] border-orange-200 text-orange-700 font-bold hover:bg-orange-50 transition-all active:scale-95"
                         onClick={() => { setShowPaymentDialog(true); setPaymentStep('select'); }}
                     >
-                        {isFinishing ? <Loader2 className="w-4 h-4 animate-spin" /> : ((order.payment_status === 'requested' || order.payment_status === 'paid') ? 'Bill Requested' : 'Request Bill')}
+                        {isFinishing ? <Loader2 className="w-4 h-4 animate-spin" /> : (order.payment_status === 'requested' ? 'Bill Requested' : 'Request Bill')}
                     </Button>
                 </div>
             </div>

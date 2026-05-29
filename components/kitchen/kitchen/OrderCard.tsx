@@ -8,6 +8,7 @@ import OrderTimer from "./OrderTimer"
 import { Leaf, Drumstick, ChefHat, Check, Eye } from "lucide-react"
 import { useKitchenStore } from "@/store/kitchenStore"
 import { triggerPaymentWebhook } from "@/lib/webhook"
+import { updateTicketStatus } from "@/services/orderService"
 
 interface OrderCardProps {
     order: Order
@@ -58,7 +59,7 @@ const orderTypeConfig = {
 }
 
 export default function OrderCard({ order, onViewDetails }: OrderCardProps) {
-    const { updateOrder } = useKitchenStore()
+    const { updateOrder, updateTicketOptimistic } = useKitchenStore()
     const config = orderTypeConfig[order.order_type as keyof typeof orderTypeConfig] || {
         label: order.order_type ? String(order.order_type).replace('_', ' ') : 'Unknown',
         icon: '📝',
@@ -88,13 +89,22 @@ export default function OrderCard({ order, onViewDetails }: OrderCardProps) {
         return labels[order.status] || 'Process'
     }
 
-    const handleQuickAction = (e: React.MouseEvent) => {
+    const handleQuickAction = async (e: React.MouseEvent) => {
         e.stopPropagation()
         const nextStatus = getNextStatus()
         if (nextStatus) {
-            updateOrder(order.id, { status: nextStatus })
+            const isTicket = !!(order as any).original_order_id
 
-            if (nextStatus === 'served') {
+            if (isTicket) {
+                // Update Ticket
+                updateTicketOptimistic(order.id, { status: nextStatus as any })
+                await updateTicketStatus(order.id, nextStatus)
+            } else {
+                // Update Order
+                updateOrder(order.id, { status: nextStatus })
+            }
+
+            if (nextStatus === 'served' && !isTicket) {
                 triggerPaymentWebhook({
                     bill_id: order.bill_id,
                     amount: order.total || 0,

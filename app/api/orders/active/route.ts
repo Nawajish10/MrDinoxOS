@@ -8,6 +8,7 @@ export async function GET(request: Request) {
     const tableId = searchParams.get('tableId')
     const customerId = searchParams.get('customerId')
     const tableNumber = searchParams.get('tableNumber')
+    const orderId = searchParams.get('orderId')
 
     // Initialize admin client to bypass RLS
     // Fallback to anon key if service role is missing (though RLS bypassing won't work then)
@@ -33,10 +34,25 @@ export async function GET(request: Request) {
             .limit(1)
 
         // Priority Logic for finding active order
-        if (tableId && tableId !== 'null') {
-            query = query.eq('table_id', tableId)
-        } else if (tableNumber && tableNumber !== 'null' && !isNaN(parseInt(tableNumber))) {
-            query = query.eq('table_number', parseInt(tableNumber))
+        if (orderId && orderId !== 'null') {
+            query = query.eq('id', orderId)
+        } else if (tableId && tableId !== 'null') {
+            // Try to find an active session for this table first
+            const { data: session } = await supabaseAdmin
+                .from('table_sessions')
+                .select('order_id')
+                .eq('table_id', tableId)
+                .eq('status', 'active')
+                .order('started_at', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+                
+            if (session?.order_id) {
+                query = query.eq('id', session.order_id)
+            } else {
+                // Fallback to searching orders table directly
+                query = query.eq('table_id', tableId)
+            }
         } else if (customerId && customerId !== 'null') {
             query = query.eq('customer_id', customerId)
         } else {

@@ -1,6 +1,6 @@
 
 export type OrderType = 'dine_in' | 'take_away' | 'home_delivery';
-export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'completed' | 'cancelled' | 'active' | 'bill_requested' | 'closed';
+export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'partially_ready' | 'ready' | 'served' | 'completed' | 'cancelled' | 'active' | 'bill_requested' | 'closed';
 export type PaymentStatus = 'pending' | 'requested' | 'paid';
 export type PaymentMethod = 'cash' | 'upi';
 export type TableStatus = 'available' | 'occupied' | 'reserved';

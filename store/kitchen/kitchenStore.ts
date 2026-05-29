@@ -19,6 +19,9 @@ interface KitchenStore {
     removeOrder: (orderId: string) => void
     setKitchenTickets: (tickets: KitchenTicket[]) => void
     addKitchenTicket: (ticket: KitchenTicket) => void
+    updateTicket: (ticketId: string, updates: Partial<KitchenTicket>) => void
+    updateTicketOptimistic: (ticketId: string, updates: Partial<KitchenTicket>) => void
+    updateItemOptimistic: (orderId: string, itemId: string, status: string) => void
     setSelectedOrder: (order: Order | null) => void
     setOrderTypeFilter: (filter: 'all' | OrderType) => void
     setRefreshInterval: (interval: number) => void
@@ -69,6 +72,61 @@ export const useKitchenStore = create<KitchenStore>((set, get) => ({
         kitchenTickets: [...state.kitchenTickets, ticket].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
         lastUpdated: new Date()
     })),
+    updateTicket: (ticketId, updates) => {
+        set((state) => ({
+            kitchenTickets: state.kitchenTickets.map((t) => t.id === ticketId ? { ...t, ...updates } : t),
+            lastUpdated: new Date()
+        }))
+    },
+    updateTicketOptimistic: (ticketId, updates) => {
+        set((state) => {
+            // First update the tickets list if we are using it
+            const newTickets = state.kitchenTickets.map((t) => t.id === ticketId ? { ...t, ...updates } : t)
+            
+            // Second, deeply update the nested ticket inside the parent order
+            // This ensures app/kitchen/page.tsx sees the updated ticket instantly!
+            const newOrders = state.orders.map(order => {
+                if (!order.kitchen_tickets) return order;
+                const hasTicket = order.kitchen_tickets.some(t => t.id === ticketId);
+                if (!hasTicket) return order;
+
+                return {
+                    ...order,
+                    kitchen_tickets: order.kitchen_tickets.map(t => 
+                        t.id === ticketId ? { ...t, ...updates } : t
+                    )
+                }
+            })
+
+            return {
+                kitchenTickets: newTickets,
+                orders: newOrders,
+                lastUpdated: new Date()
+            }
+        })
+    },
+    updateItemOptimistic: (orderId, itemId, status) => {
+        set((state) => {
+            const newOrders = state.orders.map(order => {
+                if (order.id !== orderId || !order.order_items) return order;
+
+                // Update the item status
+                const newItems = order.order_items.map(item => 
+                    item.id === itemId ? { ...item, status: status as any } : item
+                );
+
+                return {
+                    ...order,
+                    order_items: newItems
+                }
+            })
+
+            return {
+                orders: newOrders,
+                lastUpdated: new Date()
+            }
+        })
+    },
 
     setSelectedOrder: (order) => set({ selectedOrder: order }),
     setOrderTypeFilter: (filter) => set({ orderTypeFilter: filter }),

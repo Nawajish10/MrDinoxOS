@@ -14,6 +14,7 @@ import { Coupon } from '@/types'
 import { format } from 'date-fns'
 import { supabase } from '@/lib/supabase'
 import { useNotificationStore } from '@/store/notificationStore'
+import { useSessionStore } from '@/store/customer/sessionStore'
 
 import {
     Sheet,
@@ -41,6 +42,7 @@ export default function CheckoutPage() {
          removeCoupon
      } = useCartStore()
     const { addNotification } = useNotificationStore()
+    const { activeOrderId: localActiveOrderId, sessionId } = useSessionStore()
 
     const [couponCode, setCouponCode] = useState('')
     const [verifyingCoupon, setVerifyingCoupon] = useState(false)
@@ -193,6 +195,7 @@ export default function CheckoutPage() {
                 if (resolvedTableId) params.append('tableId', resolvedTableId)
                 if (tableNumber) params.append('tableNumber', tableNumber.toString())
                 if (customerId) params.append('customerId', customerId)
+                if (localActiveOrderId) params.append('orderId', localActiveOrderId)
 
                 console.log('🔍 [Step 2.5] Checking active order via API...', params.toString())
                 const res = await fetch(`/api/orders/active?${params.toString()}`)
@@ -304,7 +307,10 @@ export default function CheckoutPage() {
                     special_instructions: '',
                     delivery_address: null,
                     estimated_time: 30,
-                    created_at: new Date().toISOString()
+                    created_at: new Date().toISOString(),
+                    customer_name: name,
+                    customer_phone: phone,
+                    is_open_bill: true
                 }
 
                 console.log('📤 [Step 3/5] Inserting order to Supabase...', orderPayload)
@@ -322,6 +328,22 @@ export default function CheckoutPage() {
                 } else if (orderData) {
                     console.log('✅ Order created successfully:', orderData)
                     orderId = orderData.id
+                    
+                    // Create table session if this is a table order
+                    if (resolvedTableId) {
+                        const { error: sessionError } = await supabase
+                            .from('table_sessions')
+                            .insert({
+                                table_id: resolvedTableId,
+                                restaurant_id: rid,
+                                order_id: orderId,
+                                customer_name: name,
+                                customer_phone: phone,
+                                status: 'active'
+                            })
+                            
+                        if (sessionError) console.warn('⚠️ Table session creation failed:', sessionError)
+                    }
                 } else {
                     orderId = billId
                 }

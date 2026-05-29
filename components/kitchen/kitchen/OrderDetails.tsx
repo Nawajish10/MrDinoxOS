@@ -12,7 +12,7 @@ import { Check, ChefHat, Printer, XCircle, Clock } from "lucide-react"
 import { format } from "date-fns"
 import { Checkbox } from "@/components/ui/checkbox"
 
-import { updateOrderItemStatus } from "@/services/orderService"
+import { updateOrderItemStatus, updateTicketStatus } from "@/services/orderService"
 
 interface OrderDetailsProps {
     order: Order | null
@@ -20,8 +20,9 @@ interface OrderDetailsProps {
 }
 
 export default function OrderDetails({ order: initialOrder, onClose }: OrderDetailsProps) {
-    const { updateOrder, orders } = useKitchenStore()
+    const { updateOrder, updateTicketOptimistic, updateItemOptimistic, orders } = useKitchenStore()
     const [localOrder, setLocalOrder] = useState<Order | null>(initialOrder)
+    const [isUpdating, setIsUpdating] = useState(false)
 
     // Sync with kitchen store - update local localOrder when store updates
     useEffect(() => {
@@ -43,35 +44,58 @@ export default function OrderDetails({ order: initialOrder, onClose }: OrderDeta
 
     const unservedItems = (localOrder.order_items || []).filter(item => item.status !== 'served' && item.status !== 'completed')
 
-    const handleStatusChange = (status: Order["status"]) => {
-        updateOrder(localOrder.id, { status })
-        // DO NOT auto-update items when localOrder status changes
-        // Items must be manually checked by kitchen staff
-        console.log(`🔄 [KITCHEN] Order status changed to ${status} - items remain unchanged`)
-        onClose()
+    const handleStatusChange = async (status: Order["status"]) => {
+        if (isUpdating) return;
+        setIsUpdating(true);
+
+        try {
+            // If original_order_id exists, this is a mock order representing a ticket
+            if ((localOrder as any).original_order_id) {
+                // Optimistically update UI instantly!
+                updateTicketOptimistic(localOrder.id, { status })
+                
+                // Then fire background DB request
+                await updateTicketStatus(localOrder.id, status)
+            } else {
+                updateOrder(localOrder.id, { status })
+            }
+            console.log(`🔄 [KITCHEN] Ticket/Order status changed to ${status} - items remain unchanged`)
+            onClose()
+        } catch (e) {
+            console.error("Failed to update status", e)
+        } finally {
+            setIsUpdating(false)
+        }
     }
 
-    const toggleItemComplete = async (itemId: string, currentStatus: string) => {
-        const newStatus = currentStatus === 'ready' ? 'pending' : 'ready'
-        console.log(`🔄 [KITCHEN] Toggling item ${itemId} from ${currentStatus} to ${newStatus}`)
+    const handleItemStatusChange = async (itemId: string, newStatus: string) => {
+        if (isUpdating) return;
+        setIsUpdating(true);
 
-        const success = await updateOrderItemStatus(itemId, newStatus)
-
-        if (success) {
-            console.log(`✅ [KITCHEN] Item ${itemId} status updated successfully`)
-
-            // Optimistically update the local localOrder state
+        try {
+            console.log(`🔄 [KITCHEN] Changing item ${itemId} to ${newStatus}`)
+            
+            // Optimistically update local state immediately so the buttons change instantly
             setLocalOrder(prev => {
-                if (!prev) return prev
+                if (!prev) return prev;
                 return {
                     ...prev,
                     order_items: prev.order_items?.map(item =>
-                        item.id === itemId ? { ...item, status: newStatus } : item
+                        item.id === itemId ? { ...item, status: newStatus as any } : item
                     )
                 }
             })
-        } else {
-            console.error(`❌ [KITCHEN] Failed to update item ${itemId} status`)
+
+            // Optimistically update the global store
+            const actualOrderId = (localOrder as any).original_order_id || localOrder.id;
+            updateItemOptimistic(actualOrderId, itemId, newStatus)
+            
+            // Fire backend update
+            await updateOrderItemStatus(itemId, newStatus)
+        } catch (e) {
+            console.error(`❌ [KITCHEN] Failed to update item ${itemId} status`, e)
+        } finally {
+            setIsUpdating(false)
         }
     }
 
@@ -153,53 +177,83 @@ export default function OrderDetails({ order: initialOrder, onClose }: OrderDeta
                         {unservedItems.map((item) => (
                             <div
                                 key={item.id}
-                                className={`flex items-start gap-3 p-3 rounded-lg border transition-all ${item.status === 'ready'
-                                    ? 'border-green-300 bg-green-50/50 opacity-60'
-                                    : 'border-slate-200 bg-slate-50'
+                                className={`flex flex-col gap-3 p-4 rounded-xl border transition-all shadow-sm ${item.status === 'ready'
+                                    ? 'border-green-300 bg-green-50/50'
+                                    : item.status === 'preparing'
+                                    ? 'border-orange-300 bg-orange-50/50'
+                                    : item.status === 'served'
+                                    ? 'border-blue-300 bg-blue-50/50 opacity-60'
+                                    : 'border-slate-200 bg-white'
                                     }`}
                             >
-                                <Checkbox
-                                    id={`item-${item.id}`}
-                                    checked={item.status === 'ready'}
-                                    onCheckedChange={() => toggleItemComplete(item.id, item.status)}
-                                    className="mt-1"
-                                />
-                                <div className="flex-1">
-                                    <div className="flex justify-between items-start gap-2">
-                                        <label
-                                            htmlFor={`item-${item.id}`}
-                                            className={`font-bold cursor-pointer text-lg leading-none ${item.status === 'ready'
-                                                ? 'line-through text-slate-500'
-                                                : 'text-slate-900'
-                                                }`}
-                                        >
-                                            <span className="font-extrabold text-primary mr-2">{item.quantity}x</span>
-                                            {item.item_name}
-                                        </label>
-                                        {/* NEW badge for recently added items */}
-                                        {(() => {
-                                            if (!item.created_at) return null // No created_at, can't determine if new
+                                <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                        <div className="flex justify-between items-start gap-2">
+                                            <h4 className={`font-bold text-lg leading-none ${item.status === 'served' ? 'line-through text-slate-500' : 'text-slate-900'}`}>
+                                                <span className="font-extrabold text-primary mr-2">{item.quantity}x</span>
+                                                {item.item_name}
+                                            </h4>
+                                            {(() => {
+                                                if (!item.created_at) return null
 
-                                            const now = new Date()
-                                            const itemCreated = new Date(item.created_at.includes('Z') || item.created_at.includes('+') ? item.created_at : item.created_at + 'Z')
-                                            const diffMinutes = Math.floor((now.getTime() - itemCreated.getTime()) / (1000 * 60))
-                                            const isNew = diffMinutes < 5 // Item is new if added within last 5 minutes
+                                                const now = new Date()
+                                                const itemCreated = new Date(item.created_at.includes('Z') || item.created_at.includes('+') ? item.created_at : item.created_at + 'Z')
+                                                const diffMinutes = Math.floor((now.getTime() - itemCreated.getTime()) / (1000 * 60))
+                                                const isNew = diffMinutes < 5
 
-                                            return isNew ? (
-                                                <span className="bg-gradient-to-r from-orange-500 to-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse shadow-lg">
-                                                    NEW
-                                                </span>
-                                            ) : null
-                                        })()}
+                                                return isNew ? (
+                                                    <span className="bg-gradient-to-r from-orange-500 to-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse shadow-lg">
+                                                        NEW
+                                                    </span>
+                                                ) : null
+                                            })()}
+                                        </div>
+                                        {item.special_instructions && (
+                                            <p className={`italic text-sm mt-1.5 ${item.status === 'served' ? 'text-slate-400 line-through' : 'text-amber-600'}`}>
+                                                Note: {item.special_instructions}
+                                            </p>
+                                        )}
                                     </div>
-                                    {item.special_instructions && (
-                                        <p className={`italic text-sm mt-1 ${item.status === 'ready'
-                                            ? 'text-slate-400 line-through'
-                                            : 'text-amber-600'
-                                            }`}>
-                                            Note: {item.special_instructions}
-                                        </p>
-                                    )}
+                                </div>
+                                
+                                {/* Item Status Controls */}
+                                <div className="flex gap-2 mt-2">
+                                    <Button 
+                                        size="sm" 
+                                        variant={item.status === 'pending' ? 'default' : 'outline'}
+                                        className={item.status === 'pending' ? 'bg-slate-600 hover:bg-slate-700' : ''}
+                                        onClick={() => handleItemStatusChange(item.id, 'pending')}
+                                        disabled={isUpdating}
+                                    >
+                                        Queue
+                                    </Button>
+                                    <Button 
+                                        size="sm" 
+                                        variant={item.status === 'preparing' ? 'default' : 'outline'}
+                                        className={item.status === 'preparing' ? 'bg-orange-500 hover:bg-orange-600 text-white' : ''}
+                                        onClick={() => handleItemStatusChange(item.id, 'preparing')}
+                                        disabled={isUpdating}
+                                    >
+                                        Prep
+                                    </Button>
+                                    <Button 
+                                        size="sm" 
+                                        variant={item.status === 'ready' ? 'default' : 'outline'}
+                                        className={item.status === 'ready' ? 'bg-green-500 hover:bg-green-600 text-white' : ''}
+                                        onClick={() => handleItemStatusChange(item.id, 'ready')}
+                                        disabled={isUpdating}
+                                    >
+                                        Ready
+                                    </Button>
+                                    <Button 
+                                        size="sm" 
+                                        variant={item.status === 'served' ? 'default' : 'outline'}
+                                        className={item.status === 'served' ? 'bg-blue-500 hover:bg-blue-600 text-white' : ''}
+                                        onClick={() => handleItemStatusChange(item.id, 'served')}
+                                        disabled={isUpdating}
+                                    >
+                                        Serve
+                                    </Button>
                                 </div>
                             </div>
                         ))}
@@ -215,31 +269,10 @@ export default function OrderDetails({ order: initialOrder, onClose }: OrderDeta
                     )}
                 </div>
 
-                <DialogFooter className="gap-2 sm:gap-0">
-                    <Button variant="destructive" onClick={() => handleStatusChange('cancelled')}>
-                        <XCircle className="mr-2 h-4 w-4" /> Cancel Order
+                <DialogFooter className="gap-2 sm:gap-0 mt-4">
+                    <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">
+                        Close
                     </Button>
-                    <div className="flex-1" />
-                    {localOrder.status === 'pending' && (
-                        <Button onClick={() => handleStatusChange('confirmed')} className="bg-blue-600 hover:bg-blue-700">
-                            <Check className="mr-2 h-4 w-4" /> Accept Order
-                        </Button>
-                    )}
-                    {localOrder.status === 'confirmed' && (
-                        <Button onClick={() => handleStatusChange('preparing')} className="bg-purple-600 hover:bg-purple-700">
-                            <ChefHat className="mr-2 h-4 w-4" /> Start Cooking
-                        </Button>
-                    )}
-                    {localOrder.status === 'preparing' && (
-                        <Button onClick={() => handleStatusChange('ready')} className="bg-green-600 hover:bg-green-700">
-                            <Check className="mr-2 h-4 w-4" /> Mark Ready
-                        </Button>
-                    )}
-                    {localOrder.status === 'ready' && (
-                        <Button onClick={() => handleStatusChange('served')} className="bg-gray-600 hover:bg-gray-700">
-                            <Check className="mr-2 h-4 w-4" /> Served
-                        </Button>
-                    )}
                 </DialogFooter>
             </DialogContent>
         </Dialog>

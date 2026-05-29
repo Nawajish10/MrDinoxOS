@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { PageHeader } from '@/components/admin/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -43,12 +43,30 @@ export default function OrdersPage() {
     const [orderTypeFilter, setOrderTypeFilter] = useState<string>('all')
     const [activeTab, setActiveTab] = useState('active')
     const [processingPayment, setProcessingPayment] = useState(false)
+    const selectedOrderRef = useRef<any>(null)
+    const debounceRef = useRef<NodeJS.Timeout | null>(null)
+
+    // Keep ref in sync so realtime callback sees latest selectedOrder without causing re-subscriptions
+    useEffect(() => {
+        selectedOrderRef.current = selectedOrder
+    }, [selectedOrder])
+
+    // Debounced fetch to collapse rapid realtime events
+    const debouncedFetchOrders = useCallback(() => {
+        if (debounceRef.current) clearTimeout(debounceRef.current)
+        debounceRef.current = setTimeout(() => {
+            fetchOrders(false)
+            // Also refresh selectedOrder if open
+            if (selectedOrderRef.current) {
+                handleViewOrder(selectedOrderRef.current.id)
+            }
+        }, 300)
+    }, [])
 
     useEffect(() => {
         fetchOrders()
 
-        // Realtime Subscription
-
+        // Realtime Subscription — orders, order_items, AND kitchen_tickets
         const channel = supabase.channel('admin-orders-realtime')
             .on('postgres_changes', {
                 event: '*',
@@ -56,23 +74,27 @@ export default function OrdersPage() {
                 table: 'orders',
                 filter: `restaurant_id=eq.${RESTAURANT_ID}`
             }, (payload) => {
-                console.log('Order change received:', payload)
+                console.log('📋 [ADMIN RT] Order changed:', payload.eventType)
                 if (payload.eventType === 'INSERT') {
                     toast.success('New Order Received! 🔔')
-                    // Provide a slight delay to ensure triggering client has finished transaction if any
-                    setTimeout(() => fetchOrders(false), 1000)
-                } else {
-                    fetchOrders(false)
                 }
+                debouncedFetchOrders()
             })
             .on('postgres_changes', {
                 event: '*',
                 schema: 'public',
                 table: 'order_items'
-                // Note: order_items might not have restaurant_id directly on them depending on schema, usually they link to order_id
-                // So we listen to all, or rely on Order updates mostly. keeping it broad for safety but could add filter if schema supports it
             }, () => {
-                fetchOrders(false)
+                console.log('📋 [ADMIN RT] Order item changed')
+                debouncedFetchOrders()
+            })
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'kitchen_tickets'
+            }, () => {
+                console.log('📋 [ADMIN RT] Kitchen ticket changed')
+                debouncedFetchOrders()
             })
             .subscribe((status, err) => {
                 console.log('Admin Realtime Status:', status)
@@ -82,14 +104,15 @@ export default function OrdersPage() {
                 if (err) console.error('Subscription Error:', err)
             })
 
-        // Polling fallback every 30s
-        const interval = setInterval(() => fetchOrders(false), 30000)
+        // Polling fallback every 20s
+        const interval = setInterval(() => fetchOrders(false), 20000)
 
         return () => {
+            if (debounceRef.current) clearTimeout(debounceRef.current)
             supabase.removeChannel(channel)
             clearInterval(interval)
         }
-    }, [])
+    }, [debouncedFetchOrders])
 
     useEffect(() => {
         filterOrders()
@@ -103,7 +126,8 @@ export default function OrdersPage() {
                 .select(`
           *,
           customers (id, name, phone, email, address),
-          restaurant_tables (table_number)
+          restaurant_tables (table_number),
+          order_items (*)
         `)
                 .eq('restaurant_id', RESTAURANT_ID)
                 .order('created_at', { ascending: false })
@@ -123,7 +147,7 @@ export default function OrdersPage() {
 
         if (activeTab === 'active') {
             filtered = filtered.filter((o) =>
-                ['pending', 'confirmed', 'preparing', 'ready', 'served'].includes(o.status)
+                ['pending', 'confirmed', 'preparing', 'partially_ready', 'ready', 'served'].includes(o.status)
             )
         } else if (activeTab === 'completed') {
             filtered = filtered.filter((o) => o.status === 'completed')
@@ -587,14 +611,15 @@ export default function OrdersPage() {
                                 <div className="space-y-4">
                                     <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
                                         <div className="grid grid-cols-12 bg-gray-50 border-b border-gray-200 p-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50 z-10">
-                                            <div className="col-span-6 pl-2">Item</div>
+                                            <div className="col-span-5 pl-2">Item</div>
                                             <div className="col-span-2 text-center">Qty</div>
-                                            <div className="col-span-4 text-right pr-2">Total</div>
+                                            <div className="col-span-2 text-center">Status</div>
+                                            <div className="col-span-3 text-right pr-2">Total</div>
                                         </div>
                                         <div className="divide-y divide-gray-100">
                                             {selectedOrder.order_items?.map((item: any) => (
                                                 <div key={item.id} className="grid grid-cols-12 p-3 items-center hover:bg-gray-50/50 transition-colors">
-                                                    <div className="col-span-6 pl-2">
+                                                    <div className="col-span-5 pl-2">
                                                         <p className="text-sm font-semibold text-gray-800">{item.item_name}</p>
                                                         <p className="text-[10px] text-gray-400 font-medium">₹{(item.total / item.quantity).toFixed(0)} each</p>
                                                     </div>
@@ -603,7 +628,18 @@ export default function OrdersPage() {
                                                             {item.quantity}
                                                         </div>
                                                     </div>
-                                                    <div className="col-span-4 text-right pr-2">
+                                                    <div className="col-span-2 flex justify-center">
+                                                        <span className={cn(
+                                                            "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider",
+                                                            item.status === 'ready' ? 'bg-green-100 text-green-700' :
+                                                            item.status === 'preparing' ? 'bg-orange-100 text-orange-700' :
+                                                            item.status === 'served' ? 'bg-blue-100 text-blue-700' :
+                                                            'bg-slate-100 text-slate-700'
+                                                        )}>
+                                                            {item.status || 'pending'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="col-span-3 text-right pr-2">
                                                         <p className="text-sm font-bold text-gray-900">₹{item.total.toFixed(2)}</p>
                                                     </div>
                                                 </div>

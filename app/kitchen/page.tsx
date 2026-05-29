@@ -11,23 +11,49 @@ export default function KitchenPage() {
     const selectedOrder = useKitchenStore((state) => state.selectedOrder)
     const setSelectedOrder = useKitchenStore((state) => state.setSelectedOrder)
 
-    // Computed data - Only show active orders (not served/completed/cancelled)
-    const newOrders = orders.filter(o =>
+    // Flatten orders into kitchen tickets represented as Mock Orders
+    const ticketsAsOrders = orders.flatMap((order: any) => {
+        if (!order.kitchen_tickets || order.kitchen_tickets.length === 0) {
+            // Fallback for orders without tickets (e.g. older orders before this feature)
+            return [order];
+        }
+
+        return order.kitchen_tickets.map((ticket: any) => {
+            // Filter items that belong to this ticket
+            const ticketItems = order.order_items?.filter((item: any) => item.ticket_id === ticket.id) || [];
+            
+            return {
+                ...order,
+                id: ticket.id, // Set ID to ticket ID for updates
+                original_order_id: order.id,
+                bill_id: `${order.bill_id} (${ticket.ticket_number})`,
+                status: ticket.status,
+                order_items: ticketItems,
+                created_at: ticket.created_at
+            }
+        });
+    });
+
+    // Computed data - Only show active tickets
+    const newOrders = ticketsAsOrders.filter((o: any) =>
         (o.status === 'pending' || o.status === 'confirmed') &&
         !['served', 'completed', 'cancelled'].includes(o.status) &&
-        (orderTypeFilter === 'all' || o.order_type === orderTypeFilter)
+        (orderTypeFilter === 'all' || o.order_type === orderTypeFilter) &&
+        o.order_items?.length > 0
     )
 
-    const preparingOrders = orders.filter(o =>
+    const preparingOrders = ticketsAsOrders.filter((o: any) =>
         o.status === 'preparing' &&
         !['served', 'completed', 'cancelled'].includes(o.status) &&
-        (orderTypeFilter === 'all' || o.order_type === orderTypeFilter)
+        (orderTypeFilter === 'all' || o.order_type === orderTypeFilter) &&
+        o.order_items?.length > 0
     )
 
-    const readyOrders = orders.filter(o =>
+    const readyOrders = ticketsAsOrders.filter((o: any) =>
         o.status === 'ready' &&
         !['served', 'completed', 'cancelled'].includes(o.status) &&
-        (orderTypeFilter === 'all' || o.order_type === orderTypeFilter)
+        (orderTypeFilter === 'all' || o.order_type === orderTypeFilter) &&
+        o.order_items?.length > 0
     )
 
     return (

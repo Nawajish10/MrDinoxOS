@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {
     Activity,
@@ -62,6 +62,13 @@ export default function AdminDashboard() {
     const [isDetailsOpen, setIsDetailsOpen] = useState(false)
     const [processingPayment, setProcessingPayment] = useState(false)
     const [range, setRange] = useState<'today' | 'week' | 'month'>('today')
+    const selectedOrderRef = useRef<any>(null)
+    const debounceRef = useRef<NodeJS.Timeout | null>(null)
+
+    // Keep ref in sync
+    useEffect(() => {
+        selectedOrderRef.current = selectedOrder
+    }, [selectedOrder])
 
     // Helper to robustly parse dates primarily from UTC
     const parseDate = (dateString: string) => {
@@ -196,6 +203,17 @@ export default function AdminDashboard() {
         }
     }, [])
 
+    // Debounced dashboard refresh
+    const debouncedRefresh = useCallback(() => {
+        if (debounceRef.current) clearTimeout(debounceRef.current)
+        debounceRef.current = setTimeout(() => {
+            fetchDashboardData(range)
+            if (selectedOrderRef.current) {
+                refreshSelectedOrder(selectedOrderRef.current.id)
+            }
+        }, 300)
+    }, [range, fetchDashboardData, refreshSelectedOrder])
+
     useEffect(() => {
         fetchDashboardData(range)
 
@@ -211,17 +229,11 @@ export default function AdminDashboard() {
                     filter: `restaurant_id=eq.${RESTAURANT_ID}`
                 },
                 (payload) => {
-                    console.log('🔄 [ADMIN] Order update detected:', payload)
+                    console.log('🔄 [ADMIN] Order update detected:', payload.eventType)
                     if (payload.eventType === 'INSERT') {
                         toast.info('New Order Received! 🔔')
                     }
-
-                    fetchDashboardData(range)
-
-                    // Live update selected order if it matches
-                    if (selectedOrder && (payload.new as any)?.id === selectedOrder.id) {
-                        refreshSelectedOrder(selectedOrder.id)
-                    }
+                    debouncedRefresh()
                 }
             )
             .on(
@@ -231,11 +243,19 @@ export default function AdminDashboard() {
                     schema: 'public',
                     table: 'order_items',
                 },
-                (payload) => {
-                    fetchDashboardData(range)
-                    if (selectedOrder) {
-                        refreshSelectedOrder(selectedOrder.id)
-                    }
+                () => {
+                    debouncedRefresh()
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'kitchen_tickets',
+                },
+                () => {
+                    debouncedRefresh()
                 }
             )
             .subscribe((status) => {
@@ -245,9 +265,10 @@ export default function AdminDashboard() {
             })
 
         return () => {
+            if (debounceRef.current) clearTimeout(debounceRef.current)
             supabase.removeChannel(channel)
         }
-    }, [range, fetchDashboardData, selectedOrder, refreshSelectedOrder])
+    }, [range, fetchDashboardData, debouncedRefresh])
 
     const handleOrderClick = (order: any) => {
         // Ensure we have full details when clicking (recentOrders might rely on partial fetch if we change optimizations later, but for now safe)

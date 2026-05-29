@@ -192,6 +192,18 @@ export function useRealtime() {
                     fetchOrders()
                 }
             )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'kitchen_tickets',
+                },
+                async () => {
+                    console.log('🎟️ [REALTIME] Kitchen ticket updated')
+                    fetchOrders()
+                }
+            )
             .subscribe((status, err) => {
                 console.log('📡 [REALTIME] Kitchen subscription status:', status)
                 if (err) console.warn('❌ [REALTIME] Subscription error:', err)
@@ -202,11 +214,11 @@ export function useRealtime() {
                 }
             })
 
-        // Aggressive polling as backup (every 5 seconds for instant updates)
+        // Backup polling every 15 seconds (reduced from 5s — realtime handles the instant updates)
         const interval = setInterval(() => {
             console.log('🔄 [POLLING] Refreshing kitchen orders...')
             fetchOrders()
-        }, 5000)
+        }, 15000)
 
         return () => {
             console.log('🔌 [CLEANUP] Unsubscribing from kitchen realtime')
