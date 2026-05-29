@@ -77,7 +77,7 @@ export default function CustomersPage() {
             setCustomers(customersWithStats)
         } catch (error: unknown) {
             console.error('Error fetching customers:', error)
-            toast.error('Failed to load customers: ' + error.message)
+            toast.error('Failed to load customers: ' + (error instanceof Error ? error.message : String(error)))
         } finally {
             setLoading(false)
             setRefreshing(false)
@@ -161,7 +161,7 @@ export default function CustomersPage() {
             fetchCustomers()
         } catch (error: unknown) {
             console.error('Error adding customer:', error)
-            toast.error('Failed to add customer: ' + error.message)
+            toast.error('Failed to add customer: ' + (error instanceof Error ? error.message : String(error)))
         }
     }
 

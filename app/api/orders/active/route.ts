@@ -48,13 +48,13 @@ export async function GET(request: Request) {
 
         if (error) {
             console.error('Supabase query error:', error)
-            return NextResponse.json({ error: error.message }, { status: 500 })
+            return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
         }
 
         return NextResponse.json({ order: data })
 
     } catch (error: unknown) {
         console.error('API Handler Error:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
     }
 }

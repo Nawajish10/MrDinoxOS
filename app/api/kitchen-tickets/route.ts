@@ -31,7 +31,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ tickets: data })
     } catch (error: unknown) {
         console.error('Error fetching kitchen tickets:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
     }
 }
 
@@ -54,6 +54,6 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ ticket: data })
     } catch (error: unknown) {
         console.error('Error updating kitchen ticket:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
     }
 }

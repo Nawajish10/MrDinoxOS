@@ -214,7 +214,7 @@ export default function TablesPage() {
             toast.success(`Webhook fired! Check n8n Executions.`)
         } catch (error: unknown) {
             console.error('❌ [WEBHOOK] Final Error:', error)
-            toast.error(`Webhook Failed: ${error.message}`)
+            toast.error(`Webhook Failed: ${error instanceof Error ? error.message : String(error)}`)
         } finally {
             setLoading(false)
         }
