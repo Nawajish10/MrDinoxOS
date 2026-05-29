@@ -12,7 +12,7 @@ export function CustomerBottomNav() {
     const { activeBillId, getItemCount } = useCartStore()
     const hasCart = getItemCount() > 0
 
-    if (pathname?.includes('checkout') || pathname?.includes('scan')) return null
+    if (pathname?.includes('checkout') || pathname?.includes('scan') || pathname?.includes('track')) return null
 
     const items = [
         { label: 'Menu', icon: Utensils, href: '/customer/menu', active: pathname?.includes('/customer/menu') },
