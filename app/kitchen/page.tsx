@@ -31,8 +31,8 @@ export default function KitchenPage() {
     )
 
     return (
-        <div className="flex bg-muted/20 h-full w-full gap-4 p-4 overflow-x-auto min-h-0">
-            <div className="flex-1 min-w-[320px] max-w-[450px] flex flex-col min-h-0">
+        <div className="momentum-scroll flex h-full min-h-0 w-full gap-4 overflow-x-auto p-3 sm:p-4 lg:p-6">
+            <div className="flex min-h-0 min-w-[86vw] flex-1 flex-col sm:min-w-[360px] lg:max-w-[470px]">
                 <OrderColumn
                     title="New Orders"
                     orders={newOrders}
@@ -40,7 +40,7 @@ export default function KitchenPage() {
                     columnType="new"
                 />
             </div>
-            <div className="flex-1 min-w-[320px] max-w-[450px] flex flex-col min-h-0">
+            <div className="flex min-h-0 min-w-[86vw] flex-1 flex-col sm:min-w-[360px] lg:max-w-[470px]">
                 <OrderColumn
                     title="Preparing"
                     orders={preparingOrders}
@@ -48,7 +48,7 @@ export default function KitchenPage() {
                     columnType="preparing"
                 />
             </div>
-            <div className="flex-1 min-w-[320px] max-w-[450px] flex flex-col min-h-0">
+            <div className="flex min-h-0 min-w-[86vw] flex-1 flex-col sm:min-w-[360px] lg:max-w-[470px]">
                 <OrderColumn
                     title="Ready"
                     orders={readyOrders}

@@ -240,7 +240,7 @@ export default function OrdersPage() {
                     order.bill_id,
                     order.customers?.name || 'Walk-in',
                     order.customers?.phone || 'N/A',
-                    order.order_type.replace('_', ' '),
+                    order.order_type ? String(order.order_type).replace('_', ' ') : 'Unknown',
                     order.restaurant_tables ? `Table ${order.restaurant_tables.table_number}` : 'N/A',
                     `₹${order.total.toFixed(2)}`,
                     order.status,
@@ -352,7 +352,7 @@ export default function OrdersPage() {
                 title="Orders Management"
                 description="Track and manage all your restaurant orders in real-time"
             >
-                <Button variant="outline" onClick={exportOrders} className="glass-panel hover:bg-white/20 border-primary/20 bg-primary/5">
+                <Button variant="outline" onClick={exportOrders} className="glass-panel hover:bg-white/20 border-primary/20 bg-primary/5 min-h-[44px] px-6 active:scale-95 transition-all">
                     <Download className="mr-2 h-4 w-4 text-primary" />
                     Export CSV
                 </Button>
@@ -394,15 +394,15 @@ export default function OrdersPage() {
             </Card>
 
             <Tabs defaultValue="active" className="w-full" onValueChange={setActiveTab}>
-                <div className="flex justify-center mb-6">
-                    <TabsList className="bg-gray-100 p-1 rounded-full border border-gray-200">
-                        <TabsTrigger value="active" className="rounded-full px-6 data-[state=active]:bg-white data-[state=active]:text-green-700 data-[state=active]:shadow-sm transition-all text-gray-500 font-medium">
+                <div className="flex justify-center mb-6 overflow-x-auto pb-2">
+                    <TabsList className="bg-gray-100 p-1.5 rounded-full border border-gray-200 min-w-max">
+                        <TabsTrigger value="active" className="rounded-full px-6 py-3 min-h-[44px] data-[state=active]:bg-white data-[state=active]:text-green-700 data-[state=active]:shadow-sm transition-all text-gray-500 font-bold active:scale-95">
                             Active Orders <Badge className="ml-2 bg-green-100 text-green-700 hover:bg-green-200 border-0">{orders.filter((o) => ['pending', 'confirmed', 'preparing', 'ready'].includes(o.status)).length}</Badge>
                         </TabsTrigger>
-                        <TabsTrigger value="completed" className="rounded-full px-6 data-[state=active]:bg-white data-[state=active]:text-green-700 data-[state=active]:shadow-sm transition-all text-gray-500 font-medium">
+                        <TabsTrigger value="completed" className="rounded-full px-6 py-3 min-h-[44px] data-[state=active]:bg-white data-[state=active]:text-green-700 data-[state=active]:shadow-sm transition-all text-gray-500 font-bold active:scale-95">
                             Completed <span className="ml-2 opacity-70 text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">{orders.filter((o) => o.status === 'completed').length}</span>
                         </TabsTrigger>
-                        <TabsTrigger value="cancelled" className="rounded-full px-6 data-[state=active]:bg-white data-[state=active]:text-red-600 data-[state=active]:shadow-sm transition-all text-gray-500 font-medium">
+                        <TabsTrigger value="cancelled" className="rounded-full px-6 py-3 min-h-[44px] data-[state=active]:bg-white data-[state=active]:text-red-600 data-[state=active]:shadow-sm transition-all text-gray-500 font-bold active:scale-95">
                             Cancelled <span className="ml-2 opacity-70 text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{orders.filter((o) => o.status === 'cancelled').length}</span>
                         </TabsTrigger>
                     </TabsList>
@@ -427,13 +427,18 @@ export default function OrdersPage() {
                                     {/* Left Side: Info */}
                                     <div className="flex-1 space-y-3">
                                         <div className="flex items-center gap-3">
-                                            <h3 className="text-2xl font-black tracking-tight text-gray-900">{order.bill_id}</h3>
+                                            <h3 className="text-2xl font-black tracking-tight text-gray-900 flex items-center gap-2">
+                                                {order.bill_id}
+                                                {order.is_open_bill && (
+                                                    <span className="bg-amber-100 text-amber-700 text-[12px] px-2 py-0.5 rounded-sm font-bold uppercase tracking-wider">Running</span>
+                                                )}
+                                            </h3>
                                             {getStatusBadge(order.status)}
                                             <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-0">
                                                 {order.order_type === 'dine_in' && <Utensils className="h-3 w-3 mr-1" />}
                                                 {order.order_type === 'takeaway' && <ShoppingBag className="h-3 w-3 mr-1" />}
                                                 {order.order_type === 'delivery' && <Truck className="h-3 w-3 mr-1" />}
-                                                {order.order_type.replace('_', ' ')}
+                                                {order.order_type ? String(order.order_type).replace('_', ' ') : 'Unknown'}
                                             </Badge>
                                         </div>
 
@@ -473,18 +478,18 @@ export default function OrdersPage() {
                                             </div>
                                         </div>
 
-                                        <div className="flex flex-col gap-2">
+                                        <div className="flex flex-col gap-3">
                                             <Button
-                                                size="sm"
-                                                className="bg-green-50 text-green-700 hover:bg-green-600 hover:text-white font-bold transition-all shadow-none border border-green-200"
+                                                size="default"
+                                                className="bg-green-50 text-green-700 hover:bg-green-600 hover:text-white font-bold transition-all shadow-none border border-green-200 min-h-[44px] px-6 active:scale-95"
                                                 onClick={() => handleViewOrder(order.id)}
                                             >
                                                 <Eye className="h-4 w-4 mr-2" /> View
                                             </Button>
                                             <Button
-                                                size="sm"
+                                                size="default"
                                                 variant="ghost"
-                                                className="text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                                                className="text-gray-500 hover:text-gray-900 hover:bg-gray-100 min-h-[44px] px-6 active:scale-95"
                                                 onClick={() => handlePrintOrder(order)}
                                             >
                                                 <Printer className="h-4 w-4 mr-2" /> Print
@@ -623,22 +628,53 @@ export default function OrdersPage() {
                             {/* Actions Footer - Fixed */}
                             <div className="p-6 pt-2 shrink-0 bg-white border-t border-gray-50 z-10">
                                 {selectedOrder.status !== 'completed' && selectedOrder.payment_status !== 'paid' ? (
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <Button
-                                            className="h-11 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold shadow-sm"
-                                            onClick={() => handlePayment('cash')}
-                                            disabled={processingPayment}
-                                        >
-                                            <DollarSign className="mr-2 h-4 w-4" /> Collect Cash
-                                        </Button>
-                                        <Button
-                                            className="h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm"
-                                            onClick={() => handlePayment('upi')}
-                                            disabled={processingPayment}
-                                        >
-                                            <Smartphone className="mr-2 h-4 w-4" /> Collect UPI
-                                        </Button>
-                                    </div>
+                                    <>
+                                        {(selectedOrder.status === 'served' || selectedOrder.payment_status === 'requested') ? (
+                                            selectedOrder.payment_status === 'requested' ? (
+                                                <div className="flex flex-col gap-2">
+                                                    <div className={cn(
+                                                        "w-full p-3 rounded-xl flex items-center justify-center font-bold text-sm gap-2 border",
+                                                        selectedOrder.payment_method === 'upi' ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-green-50 border-green-200 text-green-700"
+                                                    )}>
+                                                        {selectedOrder.payment_method === 'upi' ? <Smartphone className="h-5 w-5" /> : <DollarSign className="h-5 w-5" />}
+                                                        Customer selected {selectedOrder.payment_method?.toUpperCase() || 'CASH'}
+                                                    </div>
+                                                    <Button
+                                                        className={cn(
+                                                            "h-11 w-full rounded-xl text-white font-bold shadow-sm",
+                                                            selectedOrder.payment_method === 'upi' ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"
+                                                        )}
+                                                        onClick={() => handlePayment(selectedOrder.payment_method as 'cash'|'upi' || 'cash')}
+                                                        disabled={processingPayment}
+                                                    >
+                                                        Verify & Complete {selectedOrder.payment_method?.toUpperCase() || 'CASH'} Payment
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <Button
+                                                        className="h-11 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold shadow-sm"
+                                                        onClick={() => handlePayment('cash')}
+                                                        disabled={processingPayment}
+                                                    >
+                                                        <DollarSign className="mr-2 h-4 w-4" /> Collect Cash
+                                                    </Button>
+                                                    <Button
+                                                        className="h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm"
+                                                        onClick={() => handlePayment('upi')}
+                                                        disabled={processingPayment}
+                                                    >
+                                                        <Smartphone className="mr-2 h-4 w-4" /> Collect UPI
+                                                    </Button>
+                                                </div>
+                                            )
+                                        ) : (
+                                            <div className="w-full h-11 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl flex items-center justify-center font-bold text-sm gap-2">
+                                                <Clock className="h-5 w-5 text-amber-600" />
+                                                Order is still {selectedOrder.status}. Cannot collect payment yet.
+                                            </div>
+                                        )}
+                                    </>
                                 ) : (
                                     <div className="w-full h-11 bg-green-50 border border-green-200 text-green-700 rounded-xl flex items-center justify-center font-bold text-sm gap-2">
                                         <CheckCircle2 className="h-5 w-5 text-green-600" />

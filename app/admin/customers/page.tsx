@@ -75,7 +75,7 @@ export default function CustomersPage() {
             )
 
             setCustomers(customersWithStats)
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error fetching customers:', error)
             toast.error('Failed to load customers: ' + error.message)
         } finally {
@@ -159,7 +159,7 @@ export default function CustomersPage() {
             setDialogOpen(false)
             setCustomerForm({ name: '', phone: '', email: '', address: '' })
             fetchCustomers()
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error adding customer:', error)
             toast.error('Failed to add customer: ' + error.message)
         }

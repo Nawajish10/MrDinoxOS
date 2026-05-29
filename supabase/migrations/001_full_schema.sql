@@ -1,153 +1,158 @@
 -- Full schema for Restaurant Admin Dashboard
 -- Run in Supabase SQL Editor to create necessary tables and seed demo data for local development.
 
--- Restaurants
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 CREATE TABLE IF NOT EXISTS public.restaurants (
-  id text PRIMARY KEY,
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   name text NOT NULL,
   tagline text,
-  phone text,
+  phone text UNIQUE,
   whatsapp_number text,
-  email text,
+  email text UNIQUE,
   address text,
   city text,
   logo_url text,
   banner_url text,
   upi_id text,
   upi_qr_url text,
-  is_open boolean DEFAULT true,
-  tax_percentage numeric DEFAULT 0,
-  delivery_charge numeric DEFAULT 0,
-  min_order_amount numeric DEFAULT 0,
-  avg_preparation_time integer DEFAULT 15,
+  is_open boolean NOT NULL DEFAULT true,
+  tax_percentage numeric NOT NULL DEFAULT 0,
+  delivery_charge numeric NOT NULL DEFAULT 0,
+  min_order_amount numeric NOT NULL DEFAULT 0,
+  avg_preparation_time integer NOT NULL DEFAULT 15,
   opening_time text,
   closing_time text,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
 );
 
--- Menu categories
 CREATE TABLE IF NOT EXISTS public.menu_categories (
-  id text PRIMARY KEY,
-  restaurant_id text REFERENCES public.restaurants(id) ON DELETE CASCADE,
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  restaurant_id uuid NOT NULL REFERENCES public.restaurants(id) ON UPDATE CASCADE ON DELETE CASCADE,
   name text NOT NULL,
   description text,
   image_url text,
-  sort_order integer DEFAULT 0,
-  is_active boolean DEFAULT true,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  sort_order integer NOT NULL DEFAULT 0,
+  is_active boolean NOT NULL DEFAULT true,`
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
 );
 
--- Menu items
 CREATE TABLE IF NOT EXISTS public.menu_items (
-  id text PRIMARY KEY,
-  restaurant_id text REFERENCES public.restaurants(id) ON DELETE CASCADE,
-  category_id text REFERENCES public.menu_categories(id) ON DELETE SET NULL,
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  restaurant_id uuid NOT NULL REFERENCES public.restaurants(id) ON DELETE CASCADE,
+  category_id uuid REFERENCES public.menu_categories(id) ON UPDATE CASCADE ON DELETE SET NULL,
   name text NOT NULL,
   description text,
   price numeric NOT NULL DEFAULT 0,
   discounted_price numeric,
   image_url text,
-  is_veg boolean DEFAULT false,
-  is_bestseller boolean DEFAULT false,
-  is_new boolean DEFAULT false,
-  is_spicy boolean DEFAULT false,
-  spicy_level integer DEFAULT 0,
-  is_available boolean DEFAULT true,
-  preparation_time integer DEFAULT 10,
+  is_veg boolean NOT NULL DEFAULT false,
+  is_bestseller boolean NOT NULL DEFAULT false,
+  is_new boolean NOT NULL DEFAULT false,
+  is_spicy boolean NOT NULL DEFAULT false,
+  spicy_level integer NOT NULL DEFAULT 0,
+  is_available boolean NOT NULL DEFAULT true,
+  preparation_time integer NOT NULL DEFAULT 10,
   serves text,
   stock integer DEFAULT NULL,
-  is_infinite_stock boolean DEFAULT false,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  is_infinite_stock boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
 );
 
--- Customers
 CREATE TABLE IF NOT EXISTS public.customers (
-  id text PRIMARY KEY,
-  restaurant_id text REFERENCES public.restaurants(id) ON DELETE CASCADE,
-  phone text NOT NULL,
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  restaurant_id uuid NOT NULL REFERENCES public.restaurants(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  phone text NOT NULL UNIQUE,
   name text,
-  email text,
+  email text UNIQUE,
   address text,
-  total_orders integer DEFAULT 0,
-  total_spent numeric DEFAULT 0,
+  total_orders integer NOT NULL DEFAULT 0,
+  total_spent numeric NOT NULL DEFAULT 0,
   last_order_at timestamptz,
-  created_at timestamptz DEFAULT now()
+  created_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
 );
 
--- Restaurant tables
 CREATE TABLE IF NOT EXISTS public.restaurant_tables (
-  id text PRIMARY KEY,
-  restaurant_id text REFERENCES public.restaurants(id) ON DELETE CASCADE,
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  restaurant_id uuid NOT NULL REFERENCES public.restaurants(id) ON UPDATE CASCADE ON DELETE CASCADE,
   table_number integer NOT NULL,
   table_name text,
-  capacity integer DEFAULT 1,
-  status text DEFAULT 'available',
-  is_active boolean DEFAULT true,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  capacity integer NOT NULL DEFAULT 1,
+  status text NOT NULL DEFAULT 'available',
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
 );
 
--- Orders
+CREATE TYPE order_payment_method AS ENUM ('cash', 'card', 'upi', 'wallet', 'other');
+
 CREATE TABLE IF NOT EXISTS public.orders (
-  id text PRIMARY KEY,
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   bill_id text,
-  restaurant_id text REFERENCES public.restaurants(id) ON DELETE CASCADE,
-  customer_id text REFERENCES public.customers(id) ON DELETE SET NULL,
-  table_id text REFERENCES public.restaurant_tables(id) ON DELETE SET NULL,
+  restaurant_id uuid NOT NULL REFERENCES public.restaurants(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  customer_id uuid REFERENCES public.customers(id) ON DELETE CASCADE,
+  table_id uuid REFERENCES public.restaurant_tables(id) ON DELETE SET NULL,
   order_type text,
-  status text DEFAULT 'pending',
-  payment_status text DEFAULT 'pending',
-  payment_method text DEFAULT 'cash',
-  subtotal numeric DEFAULT 0,
-  tax numeric DEFAULT 0,
-  discount numeric DEFAULT 0,
-  delivery_charge numeric DEFAULT 0,
-  total numeric DEFAULT 0,
+  status text NOT NULL DEFAULT 'pending',
+  payment_status text NOT NULL DEFAULT 'pending',
+  payment_method order_payment_method NOT NULL DEFAULT 'cash',
+  subtotal numeric NOT NULL DEFAULT 0,
+  tax numeric NOT NULL DEFAULT 0,
+  discount numeric NOT NULL DEFAULT 0,
+  delivery_charge numeric NOT NULL DEFAULT 0,
+  total numeric NOT NULL DEFAULT 0,
   special_instructions text,
   delivery_address text,
   estimated_time integer,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
 );
 
--- Order items
 CREATE TABLE IF NOT EXISTS public.order_items (
-  id text PRIMARY KEY,
-  order_id text REFERENCES public.orders(id) ON DELETE CASCADE,
-  menu_item_id text REFERENCES public.menu_items(id) ON DELETE SET NULL,
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  order_id uuid NOT NULL REFERENCES public.orders(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  menu_item_id uuid REFERENCES public.menu_items(id) ON DELETE SET NULL,
   item_name text,
-  quantity integer DEFAULT 1,
-  price numeric DEFAULT 0,
-  total numeric DEFAULT 0,
+  quantity integer NOT NULL DEFAULT 1,
+  price numeric NOT NULL DEFAULT 0,
+  total numeric NOT NULL DEFAULT 0,
   special_instructions text,
-  status text DEFAULT 'pending',
-  created_at timestamptz DEFAULT now()
+  status text NOT NULL DEFAULT 'pending',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
 );
 
--- Coupons
 CREATE TABLE IF NOT EXISTS public.coupons (
-  id text PRIMARY KEY,
-  restaurant_id text REFERENCES public.restaurants(id) ON DELETE CASCADE,
-  code text NOT NULL,
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  restaurant_id uuid REFERENCES public.restaurants(id) ON DELETE CASCADE,
+  code text NOT NULL UNIQUE,
   description text,
-  discount_type text DEFAULT 'percentage',
-  discount_value numeric DEFAULT 0,
-  min_order_amount numeric DEFAULT 0,
+  discount_type text NOT NULL DEFAULT 'percentage',
+  discount_value numeric NOT NULL DEFAULT 0,
+  min_order_amount numeric NOT NULL DEFAULT 0,
   max_discount numeric,
-  usage_limit integer DEFAULT 0,
-  used_count integer DEFAULT 0,
-  valid_from timestamptz DEFAULT now(),
-  valid_until timestamptz DEFAULT (now() + interval '30 days'),
-  is_active boolean DEFAULT true,
-  created_at timestamptz DEFAULT now()
+  usage_limit integer NOT NULL DEFAULT 0,
+  used_count integer NOT NULL DEFAULT 0,
+  valid_from timestamptz NOT NULL DEFAULT now(),
+  valid_until timestamptz NOT NULL DEFAULT (now() + interval '30 days'),
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
 );
 
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_menu_items_restaurant ON public.menu_items (restaurant_id);
 CREATE INDEX IF NOT EXISTS idx_menu_categories_restaurant ON public.menu_categories (restaurant_id);
+CREATE INDEX IF NOT EXISTS idx_menu_items_restaurant_id ON public.menu_items (restaurant_id);
 CREATE INDEX IF NOT EXISTS idx_orders_restaurant ON public.orders (restaurant_id);
 CREATE INDEX IF NOT EXISTS idx_orders_customer ON public.orders (customer_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON public.order_items (order_id);

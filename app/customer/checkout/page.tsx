@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCartStore } from '@/store/cartStore'
-import { ArrowLeft, Wallet, QrCode, ShoppingBag, Ticket, X, Percent, User, Phone, MapPin, ChevronRight, Loader2, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, ShoppingBag, Ticket, X, User, Phone, ChevronRight, Loader2, Percent } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -14,8 +14,7 @@ import { Coupon } from '@/types'
 import { format } from 'date-fns'
 import { supabase } from '@/lib/supabase'
 import { useNotificationStore } from '@/store/notificationStore'
-import { motion, AnimatePresence } from 'framer-motion'
-import { cn } from '@/lib/utils'
+
 import {
     Sheet,
     SheetContent,
@@ -27,41 +26,34 @@ import {
 
 export default function CheckoutPage() {
     const router = useRouter()
-    const {
-        items,
-        customerName,
-        customerPhone,
-        deliveryAddress,
-        orderType,
-        tableNumber,
-        getSubtotal,
-        getTax,
-        getDeliveryCharge,
-        getTotal,
-        getDiscount,
-        coupon,
-        setCustomerInfo,
-        clearCart,
-        applyCoupon,
-        removeCoupon
-    } = useCartStore()
+     const {
+         items,
+         customerName,
+         customerPhone,
+         tableNumber,
+         getSubtotal,
+         getTax,
+         getDiscount,
+         coupon,
+         setCustomerInfo,
+         clearCart,
+         applyCoupon,
+         removeCoupon
+     } = useCartStore()
     const { addNotification } = useNotificationStore()
 
-    const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi'>('upi')
-    const [loading, setLoading] = useState(false)
     const [couponCode, setCouponCode] = useState('')
     const [verifyingCoupon, setVerifyingCoupon] = useState(false)
     const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([])
-
-    const [name, setName] = useState(customerName)
-    const [phone, setPhone] = useState(customerPhone)
-    const [address, setAddress] = useState(deliveryAddress)
+    const [loading, setLoading] = useState(false)
+    const [name, setName] = useState(customerName || '')
+    const [phone, setPhone] = useState(customerPhone || '')
 
     const subtotal = getSubtotal()
     const discount = getDiscount()
     const tax = getTax()
-    const delivery = getDeliveryCharge()
-    const total = getTotal()
+    const delivery = 0 // No delivery charge for dine-in
+    const total = subtotal + tax - discount + delivery
 
     const handleApplyCoupon = async () => {
         if (!couponCode.trim()) return
@@ -88,10 +80,6 @@ export default function CheckoutPage() {
             toast.error('Please enter name and phone number')
             return
         }
-        if (orderType === 'home_delivery' && !address) {
-            toast.error('Please enter delivery address')
-            return
-        }
 
         const rid = process.env.NEXT_PUBLIC_RESTAURANT_ID
         if (!rid) {
@@ -105,14 +93,15 @@ export default function CheckoutPage() {
 
         let billId: string | null = null
         let orderId: string | null = null
+        let ticketData: { id: string; ticket_number: string } | null = null
 
         try {
             // 1. Handle Customer - Manual upsert (check then insert/update)
-            console.log('💾 [Step 1/5] Saving customer...', { name, phone, address, rid })
-
-            let customerId: string = 'temp-' + Math.random().toString(36).substr(2, 9)
+            console.log('💾 [Step 1/5] Saving customer...', { name, phone, rid })
+            
+            let customerId: string | null = null
             let customerSaveSuccess = false
-
+            
             try {
                 // First, check if customer exists
                 const { data: existingCustomer } = await supabase
@@ -129,8 +118,7 @@ export default function CheckoutPage() {
                         .from('customers')
                         .update({
                             name: name,
-                            address: address || null,
-                            updated_at: new Date().toISOString()
+                            address: null
                         })
                         .eq('id', existingCustomer.id)
                         .select('id, name, phone, address')
@@ -152,7 +140,7 @@ export default function CheckoutPage() {
                             phone: phone,
                             name: name,
                             email: null,
-                            address: address || null,
+                            address: null,
                             restaurant_id: process.env.NEXT_PUBLIC_RESTAURANT_ID
                         })
                         .select('id, name, phone, address')
@@ -166,17 +154,17 @@ export default function CheckoutPage() {
                         console.log('✅ New customer created:', newCustomer)
                     }
                 }
-            } catch (err: any) {
+            } catch (err: unknown) {
                 console.warn('⚠️ Customer save error (non-critical):', err)
                 // Continue with fallback ID
             }
 
-            console.log('✅ Customer ID confirmed:', customerId, 'Name:', name, 'Phone:', phone)
-            if (customerSaveSuccess) {
-                toast.success('Customer saved successfully!')
-            } else {
-                console.log('ℹ️ Using fallback customer ID - database may not be available')
-            }
+             console.log('✅ Customer ID confirmed:', customerId, 'Name:', name, 'Phone:', phone)
+             if (customerSaveSuccess) {
+                 toast.success('Customer saved successfully!')
+             } else {
+                 console.log('ℹ️ No customer saved - orders will be anonymous')
+             }
 
 
             // 2. Resolve Table ID from Table Number
@@ -235,33 +223,62 @@ export default function CheckoutPage() {
             billId = existingBillId
 
             if (existingOrderId) {
-                // Append to existing order
+                // Append to existing order - create kitchen ticket for new items
                 const { error: updateError } = await supabase
                     .from('orders')
                     .update({
                         total: existingTotal + total,
                         subtotal: existingSubtotal + subtotal,
-                        tax: ((existingSubtotal + subtotal - discount) * 0.05), // Recalculate tax roughly
-                        // Note: Discount logic on existing orders is complex. 
-                        // We apply discount only to the current chunk effectively by adding `total` (which is already discounted).
-                        // However, we might need to store the discount value.
-                        // Let's increment discount if any.
-                        discount: (discount || 0), // This might need to check existing discount, but schema doesn't seem to fetch it above easily.
-                        // Status logic: Move served/completed orders back to pending for new items
-                        // Keep preparing/ready orders in same status (kitchen is actively working)
+                        tax: ((existingSubtotal + subtotal - discount) * 0.05),
+                        discount: (discount || 0),
                         status: (existingStatus === 'served' || existingStatus === 'completed')
-                            ? 'pending'  // New items added to completed order - restart kitchen flow
+                            ? 'pending'
                             : (existingStatus === 'pending' || existingStatus === 'confirmed')
-                                ? 'pending'  // Keep pending
-                                : existingStatus,  // Keep preparing/ready as-is
+                                ? 'pending'
+                                : existingStatus,
                         payment_status: 'pending',
                         updated_at: new Date().toISOString()
                     })
                     .eq('id', existingOrderId)
 
                 if (updateError) throw updateError
+
+                // Create kitchen ticket for new items
+                const ticketResult = await supabase
+                    .from('kitchen_tickets')
+                    .insert({
+                        order_id: existingOrderId,
+                        ticket_number: `KT-${Date.now().toString().slice(-4)}`,
+                        status: 'pending'
+                    })
+                    .select()
+                    .single()
+
+                if (ticketResult.error) throw ticketResult.error
+                const newTicketData = ticketResult.data
+
+                // Add order items with ticket_id
+                const orderItemsData = items.map(item => ({
+                    order_id: existingOrderId,
+                    ticket_id: newTicketData.id,
+                    menu_item_id: item.id,
+                    item_name: item.name,
+                    quantity: item.quantity,
+                    price: item.discounted_price || item.price,
+                    total: item.lineTotal,
+                    special_instructions: item.instructions,
+                    status: 'pending'
+                }))
+
+                const { error: itemsError } = await supabase
+                    .from('order_items')
+                    .insert(orderItemsData)
+
+                if (itemsError) throw itemsError
+
+                ticketData = newTicketData
                 toast.success('Items added to your existing order!', {
-                    description: `Bill ID: ${billId}`
+                    description: `Bill ID: ${billId} • New Kitchen Ticket: ${newTicketData.ticket_number}`
                 })
             } else {
                 // Create new order
@@ -269,22 +286,23 @@ export default function CheckoutPage() {
                 const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0')
                 billId = `BILL${dateStr}${random}`
 
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const orderPayload: any = {
                     bill_id: billId,
                     restaurant_id: rid,
                     customer_id: customerId,
                     table_id: resolvedTableId,
-                    order_type: orderType || 'dine_in',
+                    order_type: 'dine_in',
                     status: 'pending',
                     payment_status: 'pending',
-                    payment_method: paymentMethod,
+                    payment_method: 'cash',
                     subtotal: parseFloat(subtotal.toString()) || 0,
                     tax: parseFloat(tax.toString()) || 0,
                     discount: parseFloat(discount.toString()) || 0,
                     delivery_charge: parseFloat(delivery.toString()) || 0,
                     total: parseFloat(total.toString()) || 0,
                     special_instructions: '',
-                    delivery_address: address,
+                    delivery_address: null,
                     estimated_time: 30,
                     created_at: new Date().toISOString()
                 }
@@ -311,26 +329,47 @@ export default function CheckoutPage() {
                 toast.success('Order placed successfully!', {
                     description: `Bill ID: ${billId}`
                 })
+
+                // Create kitchen ticket for initial order
+                const ticketResult = await supabase
+                    .from('kitchen_tickets')
+                    .insert({
+                        order_id: orderId,
+                        ticket_number: 'KT-1',
+                        status: 'pending'
+                    })
+                    .select()
+                    .single()
+
+                if (ticketResult.error) {
+                    console.warn('⚠️ Kitchen ticket creation failed:', ticketResult.error)
+                } else {
+                    ticketData = ticketResult.data
+                }
             }
 
             // 4. Add order items
-            const orderItemsData = items.map(item => ({
-                order_id: orderId,
-                menu_item_id: item.id,
-                item_name: item.name,
-                quantity: item.quantity,
-                price: item.discounted_price || item.price,
-                total: item.lineTotal,
-                special_instructions: item.instructions,
-                status: 'pending'  // Explicitly set status to pending - kitchen staff will manually mark as ready
-            }))
-            console.log('📦 [Step 4/5] Adding order items...', orderItemsData)
+            // Only add items if we haven't already added them in the existing order block
+            if (!existingOrderId) {
+                const orderItemsData = items.map(item => ({
+                    order_id: orderId,
+                    ticket_id: ticketData ? ticketData.id : null,
+                    menu_item_id: item.id,
+                    item_name: item.name,
+                    quantity: item.quantity,
+                    price: item.discounted_price || item.price,
+                    total: item.lineTotal,
+                    special_instructions: item.instructions,
+                    status: 'pending'
+                }))
+                console.log('📦 [Step 4/5] Adding order items...', orderItemsData)
 
-            const { error: itemsError } = await supabase
-                .from('order_items')
-                .insert(orderItemsData)
+                const { error: itemsError } = await supabase
+                    .from('order_items')
+                    .insert(orderItemsData)
 
-            if (itemsError) throw itemsError
+                if (itemsError) throw itemsError
+            }
 
             // Update Coupon Usage if used
             if (coupon && !existingOrderId) {
@@ -377,9 +416,9 @@ export default function CheckoutPage() {
                 customer: {
                     name: name,
                     phone: phone,
-                    address: address
+                    address: null
                 },
-                order_type: orderType,
+                order_type: 'dine_in',
                 table_number: tableNumber,
                 items: items.map(i => ({
                     name: i.name,
@@ -387,11 +426,13 @@ export default function CheckoutPage() {
                     price: i.discounted_price || i.price,
                     total: i.lineTotal
                 })),
-                payment_method: paymentMethod,
+                payment_method: 'pending',
                 restaurant_id: process.env.NEXT_PUBLIC_RESTAURANT_ID,
                 created_at: new Date().toISOString(),
                 source: 'customer_app',
-                trigger_type: 'new_order_placed'
+                trigger_type: existingOrderId ? 'items_added_to_running_order' : 'new_order_placed',
+                is_running_order: !!existingOrderId,
+                kitchen_ticket: ticketData ? ticketData.ticket_number : undefined
             })
 
             addNotification({
@@ -403,16 +444,16 @@ export default function CheckoutPage() {
                 link: `/customer/track/${billId}`
             })
 
-            if (paymentMethod === 'upi') {
-                router.push(`/customer/payment/upi?billId=${billId}&amount=${total}`)
-            } else {
-                router.push(`/customer/order-confirmed/${billId}`)
-            }
+            // If this is a running order, redirect with append mode flag
+            const redirectUrl = existingOrderId 
+                ? `/customer/order-confirmed/${billId}?mode=append`
+                : `/customer/order-confirmed/${billId}`
+            router.push(redirectUrl)
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('❌ Order placement encountered an error!')
             console.error('Error object:', err)
-            const errorMessage = err.message || err.details || (typeof err === 'object' ? JSON.stringify(err) : String(err))
+            const errorMessage = (err instanceof Error ? err.message : (typeof err === 'object' && err !== null && 'details' in err ? String((err as Record<string, unknown>).details) : (typeof err === 'object' ? JSON.stringify(err) : String(err))))
 
             // Don't fail the order - at least try to redirect to confirmation
             if (billId) {
@@ -421,12 +462,7 @@ export default function CheckoutPage() {
                     duration: 10000
                 })
                 
-                // Still try to redirect even with partial failure
-                if (paymentMethod === 'upi') {
-                    router.push(`/customer/payment/upi?billId=${billId}&amount=${total}`)
-                } else {
-                    router.push(`/customer/order-confirmed/${billId}`)
-                }
+                router.push(`/customer/order-confirmed/${billId}`)
             } else {
                 toast.error('Failed to place order: ' + errorMessage, {
                     duration: 10000
@@ -445,7 +481,7 @@ export default function CheckoutPage() {
                 </div>
                 <div>
                     <h2 className="text-2xl font-black text-slate-900">Your Cart is Empty</h2>
-                    <p className="text-slate-500 max-w-xs mx-auto mt-2">Looks like you haven't added any delicious items yet.</p>
+                    <p className="text-slate-500 max-w-xs mx-auto mt-2">Looks like you haven&apos;t added any delicious items yet.</p>
                 </div>
                 <Button onClick={() => router.push('/customer/menu')} className="h-14 px-10 rounded-full text-lg font-bold shadow-xl shadow-orange-500/20 bg-orange-600 hover:bg-orange-700 transition-all active:scale-95">
                     Start Ordering
@@ -455,16 +491,16 @@ export default function CheckoutPage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 pb-40 font-sans">
-            <header className="px-4 py-4 sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-white/20 shadow-sm flex items-center justify-between">
-                <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full hover:bg-black/5 -ml-2 text-slate-600">
+        <div className="min-h-svh pb-40 font-sans">
+            <header className="safe-top sticky top-0 z-40 flex items-center justify-between border-b border-slate-200/70 bg-white/90 px-4 py-3 shadow-sm backdrop-blur-xl">
+                <Button variant="ghost" size="icon" onClick={() => router.back()} className="tap-target -ml-2 rounded-2xl text-slate-600 hover:bg-black/5">
                     <ArrowLeft className="w-5 h-5" />
                 </Button>
                 <h1 className="text-sm font-black uppercase tracking-widest text-slate-900">Checkout</h1>
                 <div className="w-8" /> {/* Spacer */}
             </header>
 
-            <div className="p-6 space-y-8 max-w-lg mx-auto">
+            <div className="mx-auto max-w-lg space-y-6 px-4 py-5 sm:p-6">
                 {/* Contact Section */}
                 <div className="space-y-4">
                     <div className="flex items-center gap-2 mb-2">
@@ -474,13 +510,13 @@ export default function CheckoutPage() {
                         <h2 className="font-bold text-slate-900">Contact Details</h2>
                     </div>
 
-                    <div className="bg-white p-1 rounded-2xl shadow-sm border border-slate-100 space-y-1">
+                    <div className="touch-card space-y-1 rounded-[1.5rem] p-1">
                         <div className="flex items-center px-4 py-2 border-b border-slate-50">
                             <User className="w-4 h-4 text-slate-400 mr-3" />
                             <Input
                                 placeholder="Your Name"
                                 value={name}
-                                onChange={(e) => { setName(e.target.value); setCustomerInfo(e.target.value, phone, address) }}
+                                onChange={(e) => { setName(e.target.value); setCustomerInfo(e.target.value, phone) }}
                                 className="border-0 shadow-none focus-visible:ring-0 px-0 h-10 font-medium placeholder:text-slate-300"
                             />
                         </div>
@@ -490,77 +526,14 @@ export default function CheckoutPage() {
                                 placeholder="Phone Number"
                                 type="tel"
                                 value={phone}
-                                onChange={(e) => { setPhone(e.target.value); setCustomerInfo(name, e.target.value, address) }}
+                                onChange={(e) => { setPhone(e.target.value); setCustomerInfo(name, e.target.value) }}
                                 className="border-0 shadow-none focus-visible:ring-0 px-0 h-10 font-medium placeholder:text-slate-300"
                             />
                         </div>
-                        {orderType === 'home_delivery' && (
-                            <div className="flex items-start px-4 py-3 border-t border-slate-50">
-                                <MapPin className="w-4 h-4 text-slate-400 mr-3 mt-1" />
-                                <textarea
-                                    placeholder="Delivery Address"
-                                    value={address}
-                                    onChange={(e) => { setAddress(e.target.value); setCustomerInfo(name, phone, e.target.value) }}
-                                    className="flex-1 min-h-[80px] text-sm resize-none outline-none placeholder:text-slate-300 font-medium bg-transparent"
-                                />
-                            </div>
-                        )}
                     </div>
                 </div>
 
-                {/* Payment Method */}
-                <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-2">
-                        <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                            <Wallet className="w-4 h-4 text-green-600" />
-                        </div>
-                        <h2 className="font-bold text-slate-900">Payment Method</h2>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <button
-                            onClick={() => setPaymentMethod('upi')}
-                            className={cn(
-                                "relative h-28 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all duration-300 overflow-hidden group",
-                                paymentMethod === 'upi' ? "bg-orange-50 border-orange-500 shadow-xl shadow-orange-500/10" : "bg-white border-slate-100 hover:border-slate-200"
-                            )}
-                        >
-                            <div className={cn(
-                                "w-12 h-12 rounded-full flex items-center justify-center transition-colors mb-1",
-                                paymentMethod === 'upi' ? "bg-white text-orange-600 shadow-sm" : "bg-slate-50 text-slate-400 group-hover:bg-slate-100"
-                            )}>
-                                <QrCode className="w-6 h-6" />
-                            </div>
-                            <span className={cn("font-bold text-sm", paymentMethod === 'upi' ? "text-orange-900" : "text-slate-500")}>UPI / Online</span>
-                            {paymentMethod === 'upi' && (
-                                <div className="absolute top-3 right-3 text-orange-500">
-                                    <CheckCircle2 className="w-5 h-5 fill-orange-500 text-white" />
-                                </div>
-                            )}
-                        </button>
-
-                        <button
-                            onClick={() => setPaymentMethod('cash')}
-                            className={cn(
-                                "relative h-28 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all duration-300 overflow-hidden group",
-                                paymentMethod === 'cash' ? "bg-orange-50 border-orange-500 shadow-xl shadow-orange-500/10" : "bg-white border-slate-100 hover:border-slate-200"
-                            )}
-                        >
-                            <div className={cn(
-                                "w-12 h-12 rounded-full flex items-center justify-center transition-colors mb-1",
-                                paymentMethod === 'cash' ? "bg-white text-orange-600 shadow-sm" : "bg-slate-50 text-slate-400 group-hover:bg-slate-100"
-                            )}>
-                                <Wallet className="w-6 h-6" />
-                            </div>
-                            <span className={cn("font-bold text-sm", paymentMethod === 'cash' ? "text-orange-900" : "text-slate-500")}>Pay Cash</span>
-                            {paymentMethod === 'cash' && (
-                                <div className="absolute top-3 right-3 text-orange-500">
-                                    <CheckCircle2 className="w-5 h-5 fill-orange-500 text-white" />
-                                </div>
-                            )}
-                        </button>
-                    </div>
-                </div>
+                {/* Payment Method Removed for Running Bill System */}
 
                 {/* Order Summary */}
                 <div className="space-y-4">
@@ -571,7 +544,7 @@ export default function CheckoutPage() {
                         <h2 className="font-bold text-slate-900">Order Summary</h2>
                     </div>
 
-                    <div className="bg-white rounded-2xl shadow-lg shadow-black/5 border border-slate-100 overflow-hidden relative">
+                    <div className="touch-card relative overflow-hidden rounded-[1.5rem]">
                         {/* Receipt Top Pattern */}
                         <div className="h-2 bg-gradient-to-r from-orange-400 via-red-400 to-purple-400" />
 
@@ -735,12 +708,6 @@ export default function CheckoutPage() {
                                     <span className="text-slate-500">Tax (5%)</span>
                                     <span className="font-medium text-slate-900">₹{tax.toFixed(2)}</span>
                                 </div>
-                                {orderType === 'home_delivery' && (
-                                    <div className="flex justify-between">
-                                        <span className="text-slate-500">Delivery Fee</span>
-                                        <span className="font-medium text-slate-900">₹{delivery.toFixed(2)}</span>
-                                    </div>
-                                )}
                             </div>
                         </div>
 
@@ -753,11 +720,11 @@ export default function CheckoutPage() {
             </div>
 
             {/* Sticky Footer */}
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-white/20 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] z-50">
+            <div className="safe-bottom fixed bottom-0 left-0 right-0 z-50 border-t border-white/20 bg-white/88 p-4 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] backdrop-blur-xl">
                 <div className="max-w-lg mx-auto">
                     <Button
                         size="lg"
-                        className="w-full h-16 rounded-[2rem] text-lg font-black shadow-2xl shadow-orange-500/30 hover:shadow-orange-500/40 transition-all active:scale-[0.98] bg-gradient-to-r from-orange-500 to-red-500 text-white"
+                        className="h-16 w-full rounded-[2rem] bg-gradient-to-r from-orange-500 to-red-500 text-lg font-black text-white shadow-2xl shadow-orange-500/30 transition-all hover:shadow-orange-500/40 active:scale-[0.98]"
                         onClick={handlePlaceOrder}
                         disabled={loading}
                     >
@@ -768,7 +735,7 @@ export default function CheckoutPage() {
                             </div>
                         ) : (
                             <div className="flex items-center justify-between w-full px-2">
-                                <span>Place Order</span>
+                                <span>Confirm Order</span>
                                 <div className="bg-white/20 backdrop-blur-md px-4 py-1.5 rounded-xl text-base font-bold shadow-sm">
                                     ₹{total.toFixed(2)}
                                 </div>

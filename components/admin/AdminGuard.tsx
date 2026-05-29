@@ -20,17 +20,33 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
         }
     }, [])
 
-    const handleVerify = (e: React.FormEvent) => {
+    const handleVerify = async (e: React.FormEvent) => {
         e.preventDefault()
-        const PASSCODE = process.env.NEXT_PUBLIC_ADMIN_PASSCODE
+        
+        try {
+            const response = await fetch('/api/auth/verify-passcode', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ passcode: code }),
+            })
+            
+            const data = await response.json()
 
-        if (code === PASSCODE) {
-            sessionStorage.setItem('admin_passcode_verified', 'true')
-            setIsVerified(true)
-            toast.success('Dashboard Unlocked')
-        } else {
+            if (response.ok && data.success) {
+                sessionStorage.setItem('admin_passcode_verified', 'true')
+                setIsVerified(true)
+                toast.success('Dashboard Unlocked')
+            } else {
+                setError(true)
+                toast.error(`❌ ${data.error || 'Incorrect Passcode'}`)
+                setCode('')
+            }
+        } catch (error) {
+            console.error('Passcode verification error:', error)
             setError(true)
-            toast.error('Incorrect Passcode')
+            toast.error('Verification failed')
             setCode('')
         }
     }

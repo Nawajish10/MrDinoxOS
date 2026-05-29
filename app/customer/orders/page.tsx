@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Clock, ShoppingBag, ChevronRight, Utensils, Box, MapPin } from 'lucide-react'
+import { ArrowLeft, ShoppingBag, ChevronRight, Utensils, Box, MapPin } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
 import { useCartStore } from '@/store/customer/cartStore'
@@ -16,6 +16,7 @@ interface Order {
     order_type: string
     bill_id: string
     quantity_count?: number
+    order_items?: { id: string; item_name: string; quantity: number }[]
 }
 
 export default function OrderHistoryPage() {
@@ -24,7 +25,7 @@ export default function OrderHistoryPage() {
     const [orders, setOrders] = useState<Order[]>([])
     const [loading, setLoading] = useState(true)
 
-    const fetchOrders = async () => {
+    const fetchOrders = React.useCallback(async () => {
         if (!customerPhone) {
             setLoading(false)
             return
@@ -65,10 +66,10 @@ export default function OrderHistoryPage() {
         } finally {
             setLoading(false)
         }
-    }
+    }, [customerPhone])
 
     useEffect(() => {
-        let channel: any
+        let channel: ReturnType<typeof supabase.channel> | null = null
 
         const setupRealtime = async () => {
             fetchOrders() // Initial fetch
@@ -108,7 +109,7 @@ export default function OrderHistoryPage() {
         return () => {
             if (channel) supabase.removeChannel(channel)
         }
-    }, [customerPhone])
+    }, [customerPhone, fetchOrders])
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -147,7 +148,7 @@ export default function OrderHistoryPage() {
                 ) : orders.length === 0 ? (
                     <div className="text-center py-10 space-y-4">
                         <h3 className="font-bold text-lg">No past orders</h3>
-                        <p className="text-muted-foreground text-sm">Looks like you haven't ordered yet.</p>
+                        <p className="text-muted-foreground text-sm">Looks like you haven&apos;t ordered yet.</p>
                         <Button onClick={() => router.push('/customer/menu')}>Order Now</Button>
                     </div>
                 ) : (
@@ -180,14 +181,14 @@ export default function OrderHistoryPage() {
                                     </div>
                                     <p className="font-black text-lg">₹{order.total.toFixed(2)}</p>
                                     <div className="flex gap-1 mt-1 flex-wrap">
-                                        {(order as any).order_items?.slice(0, 3).map((item: any) => (
+                                        {order.order_items?.slice(0, 3).map((item) => (
                                             <span key={item.id} className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-bold whitespace-nowrap">
                                                 {item.quantity}x {item.item_name}
                                             </span>
                                         ))}
-                                        {(order as any).order_items?.length > 3 && (
+                                        {order.order_items && order.order_items.length > 3 && (
                                             <span className="text-[10px] text-muted-foreground font-bold">
-                                                +{(order as any).order_items.length - 3} more
+                                                +{order.order_items.length - 3} more
                                             </span>
                                         )}
                                     </div>

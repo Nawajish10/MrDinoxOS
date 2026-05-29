@@ -1,8 +1,10 @@
+
 export type OrderType = 'dine_in' | 'take_away' | 'home_delivery';
-export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'completed' | 'cancelled';
-export type PaymentStatus = 'pending' | 'paid';
+export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'completed' | 'cancelled' | 'active' | 'bill_requested' | 'closed';
+export type PaymentStatus = 'pending' | 'requested' | 'paid';
 export type PaymentMethod = 'cash' | 'upi';
 export type TableStatus = 'available' | 'occupied' | 'reserved';
+export type SessionStatus = 'idle' | 'active' | 'served' | 'payment_ready';
 
 export interface Restaurant {
     id: string;
@@ -55,6 +57,7 @@ export interface MenuItem {
     serves: string | null;
     stock?: number;
     is_infinite_stock?: boolean;
+    ar_model_url?: string | null;
     menu_categories?: {
         name: string;
     };
@@ -83,12 +86,22 @@ export interface Customer {
     created_at: string;
 }
 
+export interface KitchenTicket {
+    id: string;
+    order_id: string;
+    ticket_number: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+}
+
 export interface Order {
     id: string;
     bill_id: string;
     restaurant_id: string;
     customer_id: string | null;
     table_id: string | null;
+    session_id: string | null;
     order_type: OrderType;
     status: OrderStatus;
     payment_status: PaymentStatus;
@@ -101,9 +114,15 @@ export interface Order {
     special_instructions: string | null;
     delivery_address: string | null;
     estimated_time: number;
+    is_open_bill?: boolean;
+    customer_name?: string | null;
+    customer_phone?: string | null;
+    customer_finished_ordering?: boolean;
+    served_at?: string | null;
     created_at: string;
     updated_at: string;
     order_items?: OrderItem[];
+    kitchen_tickets?: KitchenTicket[];
     customers?: Customer;
     restaurant_tables?: {
         table_number: number;
@@ -113,15 +132,28 @@ export interface Order {
 export interface OrderItem {
     id: string;
     order_id: string;
+    ticket_id: string | null;
     menu_item_id: string;
     item_name: string;
     quantity: number;
     price: number;
     total: number;
     special_instructions: string | null;
-    status: 'pending' | 'preparing' | 'ready';
+    status: 'pending' | 'preparing' | 'ready' | 'served' | 'completed';
     created_at?: string; // For NEW badge detection
     menu_items?: MenuItem;
+}
+
+export interface TableSession {
+    id: string;
+    table_id: string;
+    restaurant_id: string;
+    order_id: string;
+    customer_name: string | null;
+    customer_phone: string | null;
+    status: 'active' | 'closed';
+    started_at: string;
+    closed_at: string | null;
 }
 
 export interface DashboardMetrics {
@@ -154,3 +186,15 @@ export interface Coupon {
     is_active: boolean;
     created_at: string;
 }
+
+export interface OrderWithDetails extends Omit<Order, 'order_items'> {
+    restaurant_name?: string | null;
+    restaurant_address?: string | null;
+    restaurant_phone?: string | null;
+    table_number?: number | null;
+    customer_name?: string | null;
+    customer_phone?: string | null;
+    tax_percentage?: number | null;
+    items: OrderItem[];
+}
+

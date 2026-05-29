@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Order, OrderItem } from "@/types"
+import { Order } from "@/types"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -12,7 +12,7 @@ import { Check, ChefHat, Printer, XCircle, Clock } from "lucide-react"
 import { format } from "date-fns"
 import { Checkbox } from "@/components/ui/checkbox"
 
-import { updateOrderItemStatus, getActiveOrders } from "@/services/orderService"
+import { updateOrderItemStatus } from "@/services/orderService"
 
 interface OrderDetailsProps {
     order: Order | null
@@ -40,6 +40,8 @@ export default function OrderDetails({ order: initialOrder, onClose }: OrderDeta
     }, [initialOrder])
 
     if (!localOrder) return null
+
+    const unservedItems = (localOrder.order_items || []).filter(item => item.status !== 'served' && item.status !== 'completed')
 
     const handleStatusChange = (status: Order["status"]) => {
         updateOrder(localOrder.id, { status })
@@ -96,7 +98,7 @@ export default function OrderDetails({ order: initialOrder, onClose }: OrderDeta
           <p>${localOrder.order_type.toUpperCase()} - Table ${localOrder.restaurant_tables?.table_number || 'N/A'}</p>
         </div>
         <div class="items">
-          ${(localOrder.order_items || []).map(item => `
+          ${unservedItems.map(item => `
             <div class="item">
               <span class="qty">${item.quantity}x</span>
               <span class="name">${item.item_name}</span>
@@ -148,7 +150,7 @@ export default function OrderDetails({ order: initialOrder, onClose }: OrderDeta
                         </p>
                     </div>
                     <div className="space-y-3">
-                        {(localOrder.order_items || []).map((item) => (
+                        {unservedItems.map((item) => (
                             <div
                                 key={item.id}
                                 className={`flex items-start gap-3 p-3 rounded-lg border transition-all ${item.status === 'ready'

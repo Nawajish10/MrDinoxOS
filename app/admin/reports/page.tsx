@@ -121,7 +121,7 @@ export default function ReportsPage() {
             setRevenueByType(Object.values(typeSales || {}))
 
         } catch (error) {
-            console.error('Error fetching reports:', error)
+            console.warn('Error fetching reports:', error)
             toast.error('Failed to load reports')
         } finally {
             setLoading(false)
@@ -138,7 +138,7 @@ export default function ReportsPage() {
             ['Total Customers', stats.totalCustomers],
         ]
 
-        let csvContent = "data:text/csv;charset=utf-8,"
+        const csvContent = "data:text/csv;charset=utf-8,"
             + headers.join(",") + "\n"
             + data.map(e => e.join(",")).join("\n")
 

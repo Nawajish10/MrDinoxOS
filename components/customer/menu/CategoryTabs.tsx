@@ -4,7 +4,6 @@ import React, { useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { MenuCategory } from '@/types'
 import { motion } from 'framer-motion'
-import { useInView } from 'framer-motion'
 
 interface CategoryTabsProps {
     categories: MenuCategory[]
@@ -35,15 +34,15 @@ export function CategoryTabs({ categories, activeCategory, onSelect }: CategoryT
         <div className="w-full overflow-hidden transition-all duration-300">
             <div
                 ref={containerRef}
-                className="flex overflow-x-auto px-2 py-2 gap-2 no-scrollbar items-center touch-pan-x"
+                className="no-scrollbar momentum-scroll flex touch-pan-x items-center gap-2 overflow-x-auto px-4 py-2.5"
             >
                 <button
                     id="tab-all"
                     onClick={() => onSelect('all')}
                     className={cn(
-                        "relative shrink-0 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 select-none active:scale-95",
+                        "tap-target relative shrink-0 rounded-2xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all duration-300 select-none active:scale-95",
                         activeCategory === 'all'
-                            ? "bg-slate-900 text-white shadow-md shadow-slate-200"
+                            ? "bg-slate-950 text-white shadow-md shadow-slate-200"
                             : "bg-white text-slate-500 hover:bg-slate-50 shadow-sm border border-gray-100"
                     )}
                 >
@@ -56,7 +55,7 @@ export function CategoryTabs({ categories, activeCategory, onSelect }: CategoryT
                         id={`tab-${category.id}`}
                         onClick={() => onSelect(category.id)}
                         className={cn(
-                            "relative shrink-0 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 select-none active:scale-95 flex items-center gap-2",
+                            "tap-target relative shrink-0 rounded-2xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all duration-300 select-none active:scale-95 flex items-center gap-2",
                             activeCategory === category.id
                                 ? "text-white"
                                 : "bg-white text-slate-500 hover:bg-slate-50 shadow-sm border border-gray-100"

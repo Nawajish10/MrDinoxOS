@@ -4,7 +4,7 @@ import { CartItem, MenuItem, OrderType, Coupon } from '@/types'
 
 interface CartState {
     items: CartItem[]
-    orderType: OrderType | null
+    orderType: OrderType
     tableNumber: number | null
     tableId: string | null
     sessionToken: string | null
@@ -13,16 +13,21 @@ interface CartState {
     customerPhone: string
     deliveryAddress: string
     coupon: Coupon | null
-    usedCoupons: string[]  // Track coupon codes already used by this customer
+    usedCoupons: string[]
+    activeOrderId: string | null
+    activeBillId: string | null
+    isAppendMode: boolean
 
     addItem: (item: MenuItem, quantity: number, instructions: string) => void
     removeItem: (cartId: string) => void
     updateQuantity: (cartId: string, quantity: number) => void
     updateItemInstructions: (cartId: string, instructions: string) => void
-    setOrderType: (type: OrderType | null) => void
+    setOrderType: (type: OrderType) => void
     setTableInfo: (number: number, id: string) => void
-    setCustomerInfo: (name: string, phone: string, address: string) => void
+    setCustomerInfo: (name: string, phone: string, address?: string) => void
     setSpecialInstructions: (text: string) => void
+    setActiveOrder: (orderId: string, billId: string) => void
+    clearActiveOrder: () => void
     applyCoupon: (coupon: Coupon) => void
     removeCoupon: () => void
     clearCart: () => void
@@ -41,7 +46,7 @@ export const useCartStore = create<CartState>()(
     persist(
         (set, get) => ({
             items: [],
-            orderType: null,
+            orderType: 'dine_in',
             tableNumber: null,
             tableId: null,
             sessionToken: null,
@@ -51,6 +56,9 @@ export const useCartStore = create<CartState>()(
             deliveryAddress: '',
             coupon: null,
             usedCoupons: [],
+            activeOrderId: null,
+            activeBillId: null,
+            isAppendMode: false,
 
             addItem: (item, quantity, instructions) => {
                 const { items } = get()
@@ -96,8 +104,22 @@ export const useCartStore = create<CartState>()(
             setOrderType: (type) => set({ orderType: type }),
             setTableInfo: (number, id) => set({ tableNumber: number, tableId: id }),
             setCustomerInfo: (name, phone, address) =>
-                set({ customerName: name, customerPhone: phone, deliveryAddress: address }),
+                set((state) => ({
+                    customerName: name,
+                    customerPhone: phone,
+                    deliveryAddress: address ?? state.deliveryAddress
+                })),
             setSpecialInstructions: (text) => set({ specialInstructions: text }),
+            setActiveOrder: (orderId, billId) => set({
+                activeOrderId: orderId,
+                activeBillId: billId,
+                isAppendMode: true
+            }),
+            clearActiveOrder: () => set({
+                activeOrderId: null,
+                activeBillId: null,
+                isAppendMode: false
+            }),
 
             applyCoupon: (coupon) => {
                 const { usedCoupons } = get()
@@ -130,8 +152,7 @@ export const useCartStore = create<CartState>()(
             },
 
             getDeliveryCharge: () => {
-                const { orderType } = get()
-                return orderType === 'home_delivery' ? 50 : 0
+                return 0
             },
 
             getDiscount: () => {

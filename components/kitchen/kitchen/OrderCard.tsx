@@ -31,7 +31,23 @@ const orderTypeConfig = {
         bgColor: 'bg-purple-500/10',
         borderColor: 'border-purple-500/30'
     },
+    takeaway: {
+        label: 'Takeaway',
+        icon: '🥡',
+        gradient: 'gradient-purple',
+        textColor: 'text-purple-300',
+        bgColor: 'bg-purple-500/10',
+        borderColor: 'border-purple-500/30'
+    },
     home_delivery: {
+        label: 'Delivery',
+        icon: '🛵',
+        gradient: 'gradient-warning',
+        textColor: 'text-amber-300',
+        bgColor: 'bg-amber-500/10',
+        borderColor: 'border-amber-500/30'
+    },
+    delivery: {
         label: 'Delivery',
         icon: '🛵',
         gradient: 'gradient-warning',
@@ -43,7 +59,14 @@ const orderTypeConfig = {
 
 export default function OrderCard({ order, onViewDetails }: OrderCardProps) {
     const { updateOrder } = useKitchenStore()
-    const config = orderTypeConfig[order.order_type as keyof typeof orderTypeConfig]
+    const config = orderTypeConfig[order.order_type as keyof typeof orderTypeConfig] || {
+        label: order.order_type ? String(order.order_type).replace('_', ' ') : 'Unknown',
+        icon: '📝',
+        gradient: 'bg-slate-500',
+        textColor: 'text-slate-300',
+        bgColor: 'bg-slate-500/10',
+        borderColor: 'border-slate-500/30'
+    }
 
     const getNextStatus = (): OrderStatus | undefined => {
         const statusFlow: Record<string, OrderStatus> = {
@@ -97,26 +120,26 @@ export default function OrderCard({ order, onViewDetails }: OrderCardProps) {
         }
     }
 
-    const orderItems = order.order_items || []
+    const orderItems = (order.order_items || []).filter(item => item.status !== 'served' && item.status !== 'completed')
 
     return (
         <Card
-            className="group relative overflow-hidden border-2 border-slate-200 bg-white shadow-sm transition-all duration-300 hover:scale-[1.02] hover:border-primary/50 hover:shadow-xl hover:shadow-primary/10 animate-slide-in cursor-pointer"
+            className="group relative cursor-pointer overflow-hidden rounded-[1.5rem] border border-white/10 bg-white shadow-xl shadow-black/10 transition-all duration-300 active:scale-[0.985] hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-2xl hover:shadow-primary/10"
             onClick={onViewDetails}
         >
             {/* Top Accent Bar */}
             <div className={`h-1.5 w-full ${config.gradient}`} />
 
-            <div className="p-4 space-y-3">
+            <div className="space-y-4 p-4 sm:p-5">
                 {/* Header */}
                 <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2">
-                        <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${config.bgColor} border ${config.borderColor}`}>
+                        <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${config.bgColor} border ${config.borderColor}`}>
                             <span className="text-xl">{config.icon}</span>
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
-                                <span className={`text-sm font-bold ${config.textColor}`}>
+                                <span className={`text-sm font-black ${config.textColor}`}>
                                     {config.label}
                                 </span>
                                 {order.restaurant_tables?.table_number && (
@@ -135,11 +158,11 @@ export default function OrderCard({ order, onViewDetails }: OrderCardProps) {
                 </div>
 
                 {/* Items List */}
-                <div className="space-y-2 rounded-lg bg-slate-50 border border-slate-100 p-3">
+                <div className="space-y-3 rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
                     {orderItems.length > 0 ? (
                         <>
                             {orderItems.slice(0, 3).map((item, idx) => (
-                                <div key={idx} className="flex items-start gap-2 text-sm">
+                                <div key={idx} className="flex items-start gap-3 text-sm">
                                     <div className="mt-0.5">
                                         {item.menu_items?.is_veg ? (
                                             <div className="flex h-4 w-4 items-center justify-center rounded border-2 border-emerald-500">
@@ -152,7 +175,7 @@ export default function OrderCard({ order, onViewDetails }: OrderCardProps) {
                                         )}
                                     </div>
                                     <div className="flex-1 leading-tight">
-                                        <span className="font-bold text-black">
+                                        <span className="font-black text-black">
                                             {item.quantity}x
                                         </span>{" "}
                                         <span className="text-slate-900 font-medium">{item.item_name}</span>
@@ -190,9 +213,9 @@ export default function OrderCard({ order, onViewDetails }: OrderCardProps) {
                 )}
 
                 {/* Actions */}
-                <div className="flex gap-2 pt-2">
+                <div className="grid grid-cols-2 gap-2 pt-1">
                     {order.status === 'served' || order.status === 'completed' ? (
-                        <div className="flex-1 h-9 bg-green-50 border-2 border-green-200 rounded-lg flex items-center justify-center gap-2 text-green-700 font-bold text-sm">
+                        <div className="col-span-2 flex min-h-12 items-center justify-center gap-2 rounded-2xl border-2 border-green-200 bg-green-50 text-sm font-black text-green-700">
                             <Check className="h-4 w-4" />
                             Order Completed
                         </div>
@@ -201,7 +224,7 @@ export default function OrderCard({ order, onViewDetails }: OrderCardProps) {
                             <Button
                                 size="sm"
                                 variant="outline"
-                                className="flex-1 border-2 border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold"
+                                className="min-h-12 rounded-2xl border-2 border-slate-200 font-black text-slate-700 hover:bg-slate-100"
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     onViewDetails()
@@ -214,7 +237,7 @@ export default function OrderCard({ order, onViewDetails }: OrderCardProps) {
                             {order.status !== 'ready' && (
                                 <Button
                                     size="sm"
-                                    className="flex-1 bg-gradient-to-r from-primary to-orange-500 font-semibold shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30"
+                                    className="min-h-12 rounded-2xl bg-gradient-to-r from-primary to-orange-500 font-black shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30"
                                     onClick={handleQuickAction}
                                 >
                                     {order.status === 'pending' && <Check className="mr-1.5 h-3.5 w-3.5" />}

@@ -1,9 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-    typescript: {
-        // Disable TypeScript errors during production builds
-        ignoreBuildErrors: true,
+    images: {
+        remotePatterns: [
+            {
+                protocol: 'https',
+                hostname: 'bipantmaeaxtsqrbewag.supabase.co',
+            },
+        ],
+    },
+    compiler: {
+        removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
     },
 };
 

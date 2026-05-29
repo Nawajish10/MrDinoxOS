@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { ShoppingBag, Utensils, Box, MapPin, Bell, Check, Trash2, ArrowRight, Clock, Flame } from 'lucide-react'
+import { ShoppingBag, Utensils, Box, MapPin, Bell, Check, Trash2, Clock, Flame } from 'lucide-react'
 import { useRestaurant } from '@/hooks/useRestaurant'
 import { useCartStore } from '@/store/cartStore'
 import { useNotificationStore } from '@/store/notificationStore'
@@ -11,7 +11,6 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
-    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -24,14 +23,14 @@ import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
+
 import useSound from 'use-sound'
 
 export function Header() {
     const { restaurant } = useRestaurant()
     const { items, tableNumber, orderType, setOrderType } = useCartStore()
     const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotifications } = useNotificationStore()
-    const [scrolled, setScrolled] = useState(false)
+
     const [mounted, setMounted] = useState(false)
     const router = useRouter()
 
@@ -69,7 +68,7 @@ export function Header() {
 
     return (
         <header
-            className="sticky top-0 left-0 right-0 z-50 transition-all duration-300 ease-out px-4 py-1 bg-white border-b border-gray-100 shadow-sm will-change-transform"
+            className="safe-top sticky top-0 left-0 right-0 z-50 border-b border-slate-200/70 bg-white/88 px-4 py-2 shadow-sm backdrop-blur-xl transition-all duration-300 ease-out will-change-transform"
         >
             <div className="max-w-6xl mx-auto flex items-center justify-between">
                 {/* Logo & Brand Group */}
@@ -78,23 +77,23 @@ export function Header() {
                     onClick={() => router.push('/customer/menu')}
                 >
                     <div className="relative">
-                        <Avatar className="h-8 w-8 ring-2 ring-white shadow-xl transition-all duration-300 ease-out">
-                            <AvatarImage src={restaurant.logo_url || undefined} className="object-cover" />
-                            <AvatarFallback className="bg-gradient-to-br from-orange-400 to-rose-600 text-white font-black text-lg">
+                        <Avatar className="h-10 w-10 ring-2 ring-white shadow-xl transition-all duration-300 ease-out">
+                            <AvatarImage src={restaurant.logo_url || 'https://placehold.co/64x64/ff0000/ffffff?text=AI&font=roboto'} className="object-cover" />
+                            <AvatarFallback className="bg-gradient-to-br from-red-500 to-red-700 text-white font-black text-lg">
                                 {restaurant.name.charAt(0)}
                             </AvatarFallback>
                         </Avatar>
-                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full shadow-sm" />
+                        <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500 shadow-sm" />
                     </div>
 
                     <div className="flex flex-col">
-                        <h1 className="font-black tracking-tight text-slate-950 transition-all duration-300 ease-out leading-none text-sm sm:text-base">
+                        <h1 className="max-w-[42vw] truncate text-sm font-black leading-none tracking-tight text-black transition-all duration-300 ease-out sm:max-w-none sm:text-base">
                             {restaurant.name}
                         </h1>
                         <div className="flex items-center gap-1 transition-all duration-300 opacity-100 h-auto mt-1">
-                            <Flame className="w-3 h-3 text-orange-500 fill-orange-500" />
-                            <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-orange-600/90 whitespace-nowrap">
-                                Tasty & Healthy
+                            <Flame className="w-3 h-3 text-red-500 fill-red-500" />
+                            <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-red-600/90 whitespace-nowrap">
+                                Spicy & Delicious
                             </span>
                         </div>
                     </div>
@@ -108,7 +107,7 @@ export function Header() {
                             variant="ghost"
                             size="icon"
                             onClick={() => router.push('/customer/orders')}
-                            className="rounded-2xl w-10 h-10 hover:bg-slate-100/80 transition-all active:scale-90"
+                            className="tap-target rounded-2xl hover:bg-slate-100/80 transition-all active:scale-90"
                             title="Recent Orders"
                         >
                             <Clock className="w-5 h-5 text-slate-600" />
@@ -121,7 +120,7 @@ export function Header() {
                             variant="ghost"
                             size="icon"
                             onClick={() => router.push('/customer/menu')} // In case they are elsewhere, or just to trigger cart
-                            className="rounded-2xl w-10 h-10 relative hover:bg-slate-100/80 transition-all active:scale-90 mr-1"
+                            className="tap-target relative rounded-2xl hover:bg-slate-100/80 transition-all active:scale-90 mr-1"
                         >
                             <ShoppingBag className="w-5 h-5 text-slate-600" />
                             {items.length > 0 && (
@@ -139,9 +138,9 @@ export function Header() {
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="rounded-2xl w-10 h-10 relative hover:bg-slate-100/80 transition-all active:scale-90"
+                                    className="tap-target relative rounded-2xl hover:bg-slate-100/80 transition-all active:scale-90"
                                 >
-                                    <Bell className={cn("w-5 h-5 text-slate-600 transition-colors", unreadCount > 0 && "animate-tada text-orange-500")} />
+                                    <Bell className={cn("w-5 h-5 text-slate-600 transition-colors", unreadCount > 0 && "animate-tada text-red-500")} />
                                     {unreadCount > 0 && (
                                         <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-white shadow-sm ring-1 ring-red-200" />
                                     )}
@@ -153,7 +152,7 @@ export function Header() {
                                     {notifications.length > 0 && (
                                         <div className="flex gap-1.5">
                                             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-white shadow-sm" onClick={markAllAsRead}>
-                                                <Check className="w-4 h-4 text-green-600" />
+                                                <Check className="w-4 h-4 text-red-600" />
                                             </Button>
                                             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-red-50" onClick={clearNotifications}>
                                                 <Trash2 className="w-4 h-4 text-red-500" />
@@ -180,12 +179,12 @@ export function Header() {
                                                     onClick={() => handleNotificationClick(notification.id, notification.link)}
                                                     className={cn(
                                                         "flex items-start gap-4 p-5 text-left hover:bg-slate-50 transition-all border-b border-slate-50 last:border-0",
-                                                        !notification.read && "bg-orange-50/50"
+                                                        !notification.read && "bg-red-50/50"
                                                     )}
                                                 >
                                                     <div className={cn(
                                                         "w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 shadow-sm",
-                                                        !notification.read ? "bg-orange-600 ring-4 ring-orange-100" : "bg-slate-200"
+                                                        !notification.read ? "bg-red-600 ring-4 ring-red-100" : "bg-slate-200"
                                                     )} />
                                                     <div className="flex-1 space-y-1.5">
                                                         <h5 className={cn("text-xs font-black tracking-tight", !notification.read ? "text-slate-900" : "text-slate-500")}>
@@ -216,9 +215,9 @@ export function Header() {
                                 <Button
                                     variant="outline"
                                     className={cn(
-                                        "h-10 gap-2 rounded-2xl px-4 border-none shadow-md transition-all active:scale-95 font-black text-[11px] uppercase tracking-wider",
+                                        "hidden h-10 gap-2 rounded-2xl border-none px-4 text-[11px] font-black uppercase tracking-wider shadow-md transition-all active:scale-95 sm:inline-flex",
                                         currentType.bg, currentType.color,
-                                        "ring-1 ring-black/5 hover:ring-orange-200"
+                                        "ring-1 ring-black/5 hover:ring-red-200"
                                     )}
                                 >
                                     <TypeIcon className="w-3.5 h-3.5" />
@@ -233,7 +232,7 @@ export function Header() {
                                     Order Preference
                                 </DropdownMenuLabel>
                                 <div className="space-y-1">
-                                    {(Object.entries(orderTypeConfig) as [OrderType, any][]).map(([key, config]) => (
+                                    {(Object.entries(orderTypeConfig) as [OrderType, typeof orderTypeConfig[keyof typeof orderTypeConfig]][]).map(([key, config]) => (
                                         <DropdownMenuItem
                                             key={key}
                                             onClick={() => setOrderType(key)}
@@ -250,7 +249,7 @@ export function Header() {
                                                 <span className="text-[10px] text-slate-500">Pick this for {config.label.toLowerCase()} orders</span>
                                             </div>
                                             {orderType === key && (
-                                                <Check className="w-4 h-4 ml-auto text-green-600" />
+                                                <Check className="w-4 h-4 ml-auto text-red-600" />
                                             )}
                                         </DropdownMenuItem>
                                     ))}

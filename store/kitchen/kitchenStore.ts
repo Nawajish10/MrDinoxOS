@@ -1,49 +1,41 @@
-
 import { create } from 'zustand'
-import { Order, OrderStatus, OrderType } from '@/types'
+import { Order, OrderStatus, OrderType, KitchenTicket } from '@/types'
 import { updateOrderStatus } from '@/services/orderService'
 
 interface KitchenStore {
-    // Orders State
     orders: Order[]
     selectedOrder: Order | null
-
-    // Filters
+    kitchenTickets: KitchenTicket[]
     orderTypeFilter: 'all' | OrderType
-
-    // Settings
-    refreshInterval: number // seconds
-    prepTimeThreshold: number // minutes for warning
-
-    // UI State
+    refreshInterval: number
+    prepTimeThreshold: number
     isSoundEnabled: boolean
     isConnected: boolean
     lastUpdated: Date | null
 
-    // Actions
     setOrders: (orders: Order[]) => void
     addOrder: (order: Order) => void
     updateOrder: (orderId: string, updates: Partial<Order>) => void
     removeOrder: (orderId: string) => void
-
+    setKitchenTickets: (tickets: KitchenTicket[]) => void
+    addKitchenTicket: (ticket: KitchenTicket) => void
     setSelectedOrder: (order: Order | null) => void
     setOrderTypeFilter: (filter: 'all' | OrderType) => void
     setRefreshInterval: (interval: number) => void
     setPrepTimeThreshold: (threshold: number) => void
-
     toggleSound: () => void
     setConnectionStatus: (status: boolean) => void
-
-    // Computed (as helpers)
     getNewOrders: () => Order[]
     getPreparingOrders: () => Order[]
     getReadyOrders: () => Order[]
     getOrdersByType: (type: string) => Order[]
+    getPendingTickets: () => KitchenTicket[]
 }
 
 export const useKitchenStore = create<KitchenStore>((set, get) => ({
     orders: [],
     selectedOrder: null,
+    kitchenTickets: [],
     orderTypeFilter: 'all',
     refreshInterval: 30,
     prepTimeThreshold: 20,
@@ -59,12 +51,9 @@ export const useKitchenStore = create<KitchenStore>((set, get) => ({
     })),
 
     updateOrder: (orderId, updates) => {
-        // Update database if status changes
         if (updates.status) {
             updateOrderStatus(orderId, updates.status as OrderStatus)
         }
-
-        // Update local state
         set((state) => ({
             orders: state.orders.map((o) => o.id === orderId ? { ...o, ...updates } : o),
             lastUpdated: new Date()
@@ -75,19 +64,21 @@ export const useKitchenStore = create<KitchenStore>((set, get) => ({
         orders: state.orders.filter((o) => o.id !== orderId)
     })),
 
-    setSelectedOrder: (order) => set({ selectedOrder: order }),
+    setKitchenTickets: (tickets) => set({ kitchenTickets: tickets, lastUpdated: new Date() }),
+    addKitchenTicket: (ticket) => set((state) => ({
+        kitchenTickets: [...state.kitchenTickets, ticket].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
+        lastUpdated: new Date()
+    })),
 
+    setSelectedOrder: (order) => set({ selectedOrder: order }),
     setOrderTypeFilter: (filter) => set({ orderTypeFilter: filter }),
     setRefreshInterval: (interval) => set({ refreshInterval: interval }),
     setPrepTimeThreshold: (threshold) => set({ prepTimeThreshold: threshold }),
-
     toggleSound: () => set((state) => ({ isSoundEnabled: !state.isSoundEnabled })),
-
     setConnectionStatus: (status) => set({ isConnected: status }),
 
     getNewOrders: () => {
         const { orders, orderTypeFilter } = get()
-        // New orders are pending or confirmed
         let filtered = orders.filter(o => o.status === 'pending' || o.status === 'confirmed')
         if (orderTypeFilter !== 'all') {
             filtered = filtered.filter(o => o.order_type === orderTypeFilter)
@@ -117,5 +108,10 @@ export const useKitchenStore = create<KitchenStore>((set, get) => ({
         const { orders } = get()
         if (type === 'all') return orders
         return orders.filter(o => o.order_type === type)
+    },
+
+    getPendingTickets: () => {
+        const { kitchenTickets } = get()
+        return kitchenTickets.filter(t => t.status === 'pending')
     }
 }))

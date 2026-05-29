@@ -72,7 +72,7 @@ export default function SettingsPage() {
                 })
             }
         } catch (error) {
-            console.error('Error fetching restaurant data:', error)
+            console.warn('Error fetching restaurant data:', error)
             toast.error('Failed to load settings')
         } finally {
             setLoading(false)

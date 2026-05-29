@@ -20,11 +20,17 @@ export default function LoginPage() {
         setLoading(true)
 
         try {
-            // Simple credential check from .env
-            const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL
-            const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email, password }),
+            })
 
-            if (email === adminEmail && password === adminPassword) {
+            const data = await response.json()
+
+            if (response.ok && data.success) {
                 // Store login session
                 localStorage.setItem('admin_logged_in', 'true')
                 localStorage.setItem('admin_email', email)
@@ -32,7 +38,7 @@ export default function LoginPage() {
                 toast.success('✅ Login successful!')
                 router.push('/admin')
             } else {
-                toast.error('❌ Invalid email or password')
+                toast.error(`❌ ${data.error || 'Invalid email or password'}`)
             }
         } catch (error) {
             console.error('Login error:', error)

@@ -10,8 +10,7 @@ export function useMenu(restaurantId: string | null) {
 
     useEffect(() => {
         if (!restaurantId) return
-
-        let channel: any
+        const rId = restaurantId
 
         async function fetchData(silent = false) {
             try {
@@ -21,13 +20,13 @@ export function useMenu(restaurantId: string | null) {
                     supabase
                         .from('menu_categories')
                         .select('*')
-                        .eq('restaurant_id', restaurantId)
+                        .eq('restaurant_id', rId)
                         .eq('is_active', true)
                         .order('sort_order', { ascending: true }),
                     supabase
                         .from('menu_items')
                         .select('*')
-                        .eq('restaurant_id', restaurantId)
+                        .eq('restaurant_id', rId)
                         .eq('is_available', true)
                 ])
 
@@ -36,19 +35,19 @@ export function useMenu(restaurantId: string | null) {
 
                 setCategories(catData.data || [])
                 setItems(itemData.data || [])
-            } catch (err: any) {
-                console.error('Error fetching menu:', err)
+            } catch (err) {
+                console.warn('Error fetching menu:', err)
                 
                 // Graceful fallback - provide sample menu items
                 const fallbackCategories: MenuCategory[] = [
-                    { id: 'cat-1', restaurant_id: restaurantId, name: 'All', description: null, image_url: null, sort_order: 0, is_active: true },
-                    { id: 'cat-2', restaurant_id: restaurantId, name: 'Starters', description: null, image_url: null, sort_order: 1, is_active: true }
+                    { id: 'cat-1', restaurant_id: rId, name: 'All', description: null, image_url: null, sort_order: 0, is_active: true },
+                    { id: 'cat-2', restaurant_id: rId, name: 'Starters', description: null, image_url: null, sort_order: 1, is_active: true }
                 ]
 
                 const fallbackItems: MenuItem[] = [
                     { 
                         id: 'item-1', 
-                        restaurant_id: restaurantId, 
+                        restaurant_id: rId, 
                         category_id: 'cat-1', 
                         name: 'Demo Salad', 
                         description: 'Fresh greens with dressing', 
@@ -66,7 +65,7 @@ export function useMenu(restaurantId: string | null) {
                     },
                     { 
                         id: 'item-2', 
-                        restaurant_id: restaurantId, 
+                        restaurant_id: rId, 
                         category_id: 'cat-2', 
                         name: 'Spicy Wings', 
                         description: 'Crispy chicken wings with spicy glaze', 
@@ -94,7 +93,7 @@ export function useMenu(restaurantId: string | null) {
 
         fetchData()
 
-        channel = supabase.channel('menu-realtime')
+        const channel = supabase.channel('menu-realtime')
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'menu_items' },

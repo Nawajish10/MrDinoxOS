@@ -107,9 +107,9 @@ export function CartSidebar() {
                         animate={{ y: 0 }}
                         exit={{ y: '100%' }}
                         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                        className="fixed bottom-0 inset-x-0 h-[85vh] sm:h-auto sm:inset-y-0 sm:right-0 sm:left-auto sm:w-full sm:max-w-md bg-white z-50 shadow-2xl rounded-t-[2rem] sm:rounded-l-[2rem] sm:rounded-tr-none flex flex-col overflow-hidden"
+                        className="fixed bottom-0 inset-x-0 h-[88svh] sm:h-auto sm:inset-y-0 sm:right-0 sm:left-auto sm:w-full sm:max-w-md bg-white z-50 shadow-2xl rounded-t-[2rem] sm:rounded-l-[2rem] sm:rounded-tr-none flex flex-col overflow-hidden"
                     >
-                        <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-orange-50/50 to-white">
+                        <div className="flex items-center justify-between p-5 sm:p-6 border-b bg-gradient-to-r from-orange-50/70 to-white">
                             <div className="flex items-center gap-3">
                                 <div className="bg-primary/10 p-2 rounded-xl">
                                     <ShoppingBag className="w-6 h-6 text-primary" />
@@ -119,12 +119,12 @@ export function CartSidebar() {
                                     <p className="text-xs text-muted-foreground font-medium mt-1">{items.length} items</p>
                                 </div>
                             </div>
-                            <Button variant="ghost" size="icon" onClick={closeCart} className="rounded-full hover:bg-muted active:scale-95 transition-transform">
+                            <Button variant="ghost" size="icon" onClick={closeCart} className="tap-target rounded-full hover:bg-muted active:scale-95 transition-transform">
                                 <X className="w-6 h-6" />
                             </Button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                        <div className="flex-1 overflow-y-auto momentum-scroll p-4 sm:p-6 space-y-4 sm:space-y-6">
                             {items.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-6 animate-in zoom-in-95 duration-500">
                                     <div className="w-24 h-24 bg-secondary rounded-full flex items-center justify-center">
@@ -143,7 +143,7 @@ export function CartSidebar() {
                                     <motion.div
                                         layout
                                         key={item.cartId}
-                                        className="flex gap-4 p-4 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-all group relative overflow-hidden"
+                                        className="touch-card flex gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl transition-all group relative overflow-hidden"
                                     >
                                         <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-primary via-orange-400 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
@@ -151,10 +151,10 @@ export function CartSidebar() {
                                             <img
                                                 src={item.image_url}
                                                 alt={item.name}
-                                                className="w-20 h-20 object-cover rounded-xl bg-secondary shrink-0"
+                                                className="h-20 w-20 shrink-0 rounded-2xl bg-secondary object-cover"
                                             />
                                         ) : (
-                                            <div className="w-20 h-20 bg-secondary rounded-xl flex items-center justify-center text-muted-foreground shrink-0">
+                                            <div className="h-20 w-20 shrink-0 rounded-2xl bg-secondary flex items-center justify-center text-muted-foreground">
                                                 <span className="text-xs">No Img</span>
                                             </div>
                                         )}
@@ -176,17 +176,17 @@ export function CartSidebar() {
                                             </div>
 
                                             <div className="flex items-center justify-between mt-3">
-                                                <div className="flex items-center gap-3 bg-secondary/50 rounded-lg p-1 border border-secondary">
+                                                <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1">
                                                     <button
                                                         onClick={() => updateQuantity(item.cartId, item.quantity - 1)}
-                                                        className="w-7 h-7 flex items-center justify-center bg-white rounded-md shadow-sm text-primary hover:text-primary/80 active:scale-90 transition-all"
+                                                        className="tap-target !min-h-9 !min-w-9 flex items-center justify-center bg-white rounded-xl shadow-sm text-primary hover:text-primary/80 active:scale-90 transition-all"
                                                     >
                                                         <Minus className="w-3 h-3" strokeWidth={3} />
                                                     </button>
                                                     <span className="text-sm font-bold w-4 text-center">{item.quantity}</span>
                                                     <button
                                                         onClick={() => updateQuantity(item.cartId, item.quantity + 1)}
-                                                        className="w-7 h-7 flex items-center justify-center bg-white rounded-md shadow-sm text-primary hover:text-primary/80 active:scale-90 transition-all"
+                                                        className="tap-target !min-h-9 !min-w-9 flex items-center justify-center bg-white rounded-xl shadow-sm text-primary hover:text-primary/80 active:scale-90 transition-all"
                                                     >
                                                         <Plus className="w-3 h-3" strokeWidth={3} />
                                                     </button>
@@ -194,7 +194,7 @@ export function CartSidebar() {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                                                    className="tap-target text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-colors"
                                                     onClick={() => removeItem(item.cartId)}
                                                 >
                                                     <Trash2 className="w-4 h-4" />
@@ -207,7 +207,7 @@ export function CartSidebar() {
                         </div>
 
                         {items.length > 0 && (
-                            <div className="p-6 bg-white border-t space-y-4 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] z-20">
+                            <div className="safe-bottom p-5 sm:p-6 bg-white border-t space-y-4 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] z-20">
                                 <div className="space-y-2 text-sm">
                                     <div className="flex justify-between text-muted-foreground font-medium">
                                         <span>Subtotal</span>
@@ -228,7 +228,7 @@ export function CartSidebar() {
                                 </div>
 
                                 <Button
-                                    className="w-full h-14 rounded-2xl text-lg font-bold shadow-xl shadow-orange-200 hover:shadow-orange-300 active:scale-[0.98] transition-all bg-orange-500 hover:bg-orange-600 text-white border border-orange-600"
+                                    className="w-full h-15 min-h-[60px] rounded-[1.35rem] text-base font-black shadow-xl shadow-orange-200 hover:shadow-orange-300 active:scale-[0.98] transition-all bg-orange-500 hover:bg-orange-600 text-white border border-orange-600"
                                     onClick={handleCheckout}
                                 >
                                     Proceed to Checkout

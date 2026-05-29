@@ -387,63 +387,63 @@ export function AdminHeader() {
         setMounted(true)
     }, [])
 
-    if (!mounted) return <header className="h-16 border-b border-gray-100 bg-white/95" />
+    if (!mounted) return <header className="h-16 border-b border-gray-100 bg-gradient-to-r from-red-600 to-black" />
 
     return (
-        <header className="glass-header h-16 flex items-center justify-between px-6 transition-all border-b border-gray-100 bg-white/95 text-black">
+        <header className="glass-header h-16 flex items-center justify-between px-6 transition-all border-b border-gray-100 bg-gradient-to-r from-red-600 to-black text-white">
             {/* Search */}
             <div className="flex flex-1 items-center gap-4 relative">
                 <div className="relative w-full max-w-md group">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 group-focus-within:text-green-600 transition-colors duration-300" />
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 group-focus-within:text-red-600 transition-colors duration-300" />
                     <Input
                         type="search"
                         placeholder="Search orders, items, customers..."
-                        className="pl-10 h-10 w-full bg-gray-50 border-gray-200 ring-0 focus-visible:ring-1 focus-visible:ring-green-500 focus-visible:bg-white transition-all rounded-xl placeholder:text-gray-400 shadow-sm text-black"
+                         className="pl-10 h-10 w-full bg-gray-600 border-gray-500 ring-0 focus-visible:ring-1 focus-visible:ring-red-500 focus-visible:bg-gray-600 transition-all rounded-xl placeholder:text-gray-300 shadow-sm text-white"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         onFocus={() => searchQuery.length >= 2 && setShowResults(true)}
                     />
                     {searchQuery && (
                         <button
-                            onClick={() => {
-                                setSearchQuery('')
-                                setSearchResults([])
-                                setShowResults(false)
-                            }}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 hover:bg-gray-200 rounded-full transition-colors"
-                        >
-                            <X className="h-3 w-3 text-gray-400" />
-                        </button>
+                         onClick={() => {
+                                 setSearchQuery('')
+                                 setSearchResults([])
+                                 setShowResults(false)
+                             }}
+                             className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 hover:bg-red-500 rounded-full transition-colors"
+                         >
+                             <X className="h-3 w-3 text-white" />
+                         </button>
                     )}
 
                     {/* Search Results Dropdown */}
-                    {showResults && (
-                        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl border border-gray-100 shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
-                            <div className="p-2 border-b border-gray-100 bg-gray-50 flex justify-between items-center px-4">
-                                <span className="text-xs font-bold uppercase tracking-wider text-gray-500">
-                                    Search Results
-                                </span>
-                                {searching && (
-                                    <div className="h-3 w-3 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
-                                )}
-                            </div>
-                            <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
-                                {searchResults.length === 0 && !searching ? (
-                                    <div className="p-8 text-center">
-                                        <Search className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                                        <p className="text-sm text-gray-500">No results found for "{searchQuery}"</p>
-                                    </div>
-                                ) : (
-                                    searchResults.map((result) => (
-                                        <button
-                                            key={`${result.type}-${result.id}`}
-                                            className="w-full flex items-center gap-4 p-3 hover:bg-green-50 transition-colors border-b border-gray-50 last:border-0 text-left"
-                                            onClick={() => fetchFullDetails(result)}
-                                        >
+                     {showResults && (
+                         <div className="absolute top-full left-0 right-0 mt-2 bg-gray-800 rounded-xl border border-gray-700 shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
+                             <div className="p-2 border-b border-gray-600 bg-gray-600 flex justify-between items-center px-4">
+                                 <span className="text-xs font-bold uppercase tracking-wider text-gray-300">
+                                     Search Results
+                                 </span>
+{searching && (
+<div className="h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                                                      )}
+                                                 </div>
+                                            <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
+                                                {searchResults.length === 0 && !searching ? (
+                                                     <div className="p-8 text-center">
+                                                         <Search className="h-8 w-8 text-white mx-auto mb-2" />
+                                                         <p className="text-sm text-gray-300">No results found for "{searchQuery}"</p>
+                                                     </div>
+                                                ) : (
+                                                    searchResults.map((result) => (
+<button
+                                             key={`${result.type}-${result.id}`}
+                                              className="w-full flex items-center gap-4 p-3 hover:bg-red-600 transition-colors border-b border-gray-600 last:border-0 text-left"
+                                              onClick={() => fetchFullDetails(result)}
+                                          >
                                             <div className={cn(
                                                 "h-10 w-10 rounded-lg flex items-center justify-center shrink-0 shadow-sm transition-transform hover:scale-105",
                                                 result.type === 'order' ? "bg-blue-50 text-blue-600" :
-                                                    result.type === 'menu' ? "bg-orange-50 text-orange-600" :
+                                                    result.type === 'menu' ? "bg-red-50 text-red-600" :
                                                         "bg-purple-50 text-purple-600"
                                             )}>
                                                 {result.type === 'order' ? <ShoppingBag className="h-5 w-5" /> :
@@ -453,20 +453,20 @@ export function AdminHeader() {
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
-                                                    <p className="font-semibold text-sm truncate text-gray-900">{result.title}</p>
+                                                     <p className="font-semibold text-sm truncate text-white">{result.title}</p>
                                                 </div>
-                                                <p className="text-xs text-gray-500 truncate mt-0.5">{result.subtitle}</p>
+                                                 <p className="text-xs text-gray-300 truncate mt-0.5">{result.subtitle}</p>
                                             </div>
                                         </button>
                                     ))
                                 )}
                             </div>
                             {searchResults.length > 0 && (
-                                <div className="p-2 text-center border-t border-gray-100 bg-gray-50">
-                                    <p className="text-[10px] text-gray-400">
-                                        Tip: Press <kbd className="font-sans px-1 rounded bg-gray-200 text-gray-600">Esc</kbd> to close
-                                    </p>
-                                </div>
+                                 <div className="p-2 text-center border-t border-gray-600 bg-gray-600">
+                                     <p className="text-[10px] text-gray-300">
+                                         Tip: Press <kbd className="font-sans px-1 rounded bg-gray-600 text-gray-300">Esc</kbd> to close
+                                     </p>
+                                 </div>
                             )}
                         </div>
                     )}
@@ -477,97 +477,82 @@ export function AdminHeader() {
             <div className="flex items-center gap-3">
                 {/* Notifications */}
                 <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="relative hover:bg-green-50 rounded-full text-gray-500 hover:text-green-600 transition-all duration-300">
-                            <Bell className="h-5 w-5" />
-                            <Badge
-                                className="absolute -right-0.5 -top-0.5 h-4 w-4 rounded-full p-0 text-[10px] font-bold flex items-center justify-center bg-red-500 text-white border border-white shadow-sm"
-                            >
-                                {notifications.filter(n => !n.isRead).length}
-                            </Badge>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-80 p-0 bg-white border border-gray-100 shadow-xl rounded-xl" align="end">
-                        <div className="p-4 border-b border-gray-100 bg-gray-50">
-                            <h4 className="font-semibold text-sm text-gray-900">Notifications</h4>
-                        </div>
+                 <DropdownMenuTrigger asChild>
+                         <Button variant="ghost" size="icon" className="relative hover:bg-red-500 rounded-full text-white hover:text-white transition-all duration-300">
+                             <Bell className="h-5 w-5" />
+                             <Badge
+                                 className="absolute -right-0.5 -top-0.5 h-4 w-4 rounded-full p-0 text-[10px] font-bold flex items-center justify-center bg-red-500 text-white border border-white shadow-sm"
+                             >
+                                 {notifications.filter(n => !n.isRead).length}
+                             </Badge>
+                         </Button>
+                     </DropdownMenuTrigger>
+                     <DropdownMenuContent className="w-80 p-0 bg-gray-800 border border-gray-700 shadow-xl rounded-xl" align="end">
+                         <div className="p-4 border-b border-gray-600 bg-gray-600">
+                             <h4 className="font-semibold text-sm text-white">Notifications</h4>
+                         </div>
                         <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
-                            {notifications.length === 0 ? (
-                                <div className="p-8 text-center text-gray-400 text-sm">
-                                    No notifications
-                                </div>
-                            ) : (
-                                notifications.map((notif) => (
-                                    <div
-                                        key={notif.id}
-                                        className={cn(
-                                            "p-4 border-b border-gray-50 hover:bg-green-50 cursor-pointer transition-colors",
-                                            !notif.isRead && "bg-green-50/50"
-                                        )}
-                                        onClick={() => {
-                                            setNotifications(prev =>
-                                                prev.map(n => n.id === notif.id ? { ...n, isRead: true } : n)
-                                            )
-                                        }}
-                                    >
-                                        <div className="flex gap-3">
-                                            <div className="h-2 w-2 mt-1.5 rounded-full bg-green-500 shrink-0" />
-                                            <div>
-                                                <p className="text-sm font-medium leading-none text-gray-900">{notif.title}</p>
-                                                <p className="text-xs text-gray-500 mt-1">{notif.message}</p>
-                                                <p className="text-[10px] text-gray-400 mt-2 opacity-70">{notif.time}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
+                             {notifications.length === 0 ? (
+                                 <div className="p-8 text-center text-gray-300 text-sm">
+                                     No notifications
+                                 </div>
+                             ) : (
+                     notifications.map((notif) => (
+                         <div key={notif.id} className="p-4 border-b border-gray-600 hover:bg-gray-600 cursor-pointer transition-colors">
+                             <div className="flex items-center space-x-3">
+                                 <div className="h-2 w-2 mt-1.5 rounded-full bg-green-500 shrink-0" />
+                                 <div className="flex-1">
+                                     <p className="text-sm font-medium text-white line-clamp-1">{notif.title}</p>
+                                     <p className="text-xs text-gray-300 line-clamp-1">{notif.message}</p>
+                                 </div>
+                             </div>
+                         </div>
+                     ))
                             )}
                         </div>
-                        <div className="p-2 text-center border-t border-gray-100">
-                            <Button variant="ghost" size="sm" className="w-full text-xs font-medium hover:bg-gray-50 h-8 text-gray-600">
-                                View all notifications
-                            </Button>
-                        </div>
+                         <div className="p-2 text-center border-t border-gray-600 bg-gray-600">
+                             <Button variant="ghost" size="sm" className="w-full text-xs font-medium hover:bg-gray-600 h-8 text-gray-300">
+                                 View all notifications
+                             </Button>
+                         </div>
                     </DropdownMenuContent>
                 </DropdownMenu>
 
                 {/* Profile Dropdown */}
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="flex items-center gap-2 hover:bg-green-50 h-10 px-2 transition-all duration-300 rounded-xl">
-                            <Avatar className="h-8 w-8 ring-2 ring-gray-100 transition-all hover:ring-green-400">
-                                <AvatarFallback className="bg-gradient-to-br from-green-500 to-emerald-700 text-white font-bold text-xs">
-                                    AD
-                                </AvatarFallback>
-                            </Avatar>
-                            <span className="hidden text-sm font-medium md:inline-block text-gray-700">
-                                Admin
-                            </span>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56 bg-white border border-gray-100 shadow-xl rounded-xl">
-                        <DropdownMenuLabel>
-                            <div className="flex flex-col space-y-1 p-1">
-                                <p className="text-sm font-medium leading-none text-gray-900">Restaurant Admin</p>
-                                <p className="text-xs leading-none text-gray-500">admin@restaurant.com</p>
-                            </div>
-                        </DropdownMenuLabel>
-                        <DropdownMenuSeparator className="bg-gray-100" />
-                        <DropdownMenuItem onClick={() => router.push('/admin/settings')} className="cursor-pointer hover:bg-green-50 focus:bg-green-50 rounded-lg my-1 text-gray-700">
-                            <User className="mr-2 h-4 w-4 text-gray-500" />
-                            <span>Profile</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push('/admin/settings')} className="cursor-pointer hover:bg-green-50 focus:bg-green-50 rounded-lg my-1 text-gray-700">
-                            <SettingsIcon className="mr-2 h-4 w-4 text-gray-500" />
-                            <span>Settings</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator className="bg-gray-100" />
-                        <DropdownMenuItem
-                            onClick={handleLogout}
-                            className="text-red-600 focus:text-red-700 cursor-pointer hover:bg-red-50 focus:bg-red-50 rounded-lg my-1"
-                        >
-                            <LogOut className="mr-2 h-4 w-4" />
-                            <span>Logout</span>
-                        </DropdownMenuItem>
+                 <DropdownMenu>
+                     <DropdownMenuTrigger asChild>
+                         <Button variant="ghost" className="flex items-center gap-2 hover:bg-green-600 h-10 px-2 transition-all duration-300 rounded-xl">
+                             <Avatar className="h-8 w-8 ring-2 ring-gray-600 transition-all hover:ring-green-500">
+                                 <AvatarFallback className="bg-gradient-to-br from-green-500 to-emerald-700 text-white font-bold text-xs">
+                                     AD
+                                 </AvatarFallback>
+                             </Avatar>
+                         </Button>
+                     </DropdownMenuTrigger>
+                     <DropdownMenuContent align="end" className="w-56 bg-gray-800 border border-gray-700 shadow-xl rounded-xl">
+                      <DropdownMenuLabel>
+                         <div className="flex flex-col space-y-1 p-1">
+                             <p className="text-sm font-medium leading-none text-white">Restaurant Admin</p>
+                             <p className="text-xs leading-none text-gray-300">admin@restaurant.com</p>
+                         </div>
+                     </DropdownMenuLabel>
+                         <DropdownMenuSeparator className="bg-gray-600" />
+                         <DropdownMenuItem onClick={() => router.push('/admin/settings')} className="cursor-pointer hover:bg-green-600 focus:bg-green-600 rounded-lg my-1 text-white">
+                             <User className="mr-2 h-4 w-4 text-gray-300" />
+                             <span>Profile</span>
+                         </DropdownMenuItem>
+                         <DropdownMenuItem onClick={() => router.push('/admin/settings')} className="cursor-pointer hover:bg-green-600 focus:bg-green-600 rounded-lg my-1 text-white">
+                             <SettingsIcon className="mr-2 h-4 w-4 text-gray-300" />
+                             <span>Settings</span>
+                         </DropdownMenuItem>
+                         <DropdownMenuSeparator className="bg-gray-600" />
+                         <DropdownMenuItem
+                             onClick={handleLogout}
+                             className="text-red-400 focus:text-red-300 cursor-pointer hover:bg-red-600 focus:bg-red-600 rounded-lg my-1"
+                         >
+                             <LogOut className="mr-2 h-4 w-4" />
+                             <span>Logout</span>
+                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>

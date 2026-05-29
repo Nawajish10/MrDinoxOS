@@ -1,10 +1,10 @@
 'use client'
+/* eslint-disable @next/next/no-img-element */
 
 import React from 'react'
-import { Plus, Minus, Flame, Crown, Sparkles, ChefHat } from 'lucide-react'
+import { Plus, Minus, Flame, Crown, ChefHat } from 'lucide-react'
 import { MenuItem } from '@/types'
 import { useCartStore } from '@/store/cartStore'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -47,10 +47,10 @@ export function MenuItemCard({ item, onAdd }: MenuItemCardProps) {
     return (
         <div
             onClick={onAdd}
-            className="group relative flex bg-white rounded-[20px] p-3 shadow-sm border border-black/5 active:scale-[0.98] transition-all duration-300 overflow-hidden cursor-pointer w-full gap-4"
+            className="touch-card group relative flex w-full cursor-pointer gap-3 overflow-hidden rounded-[1.35rem] p-3 transition-all duration-300 active:scale-[0.985] sm:gap-4 sm:p-3.5"
         >
             {/* Image Section */}
-            <div className="relative w-28 h-28 sm:w-36 sm:h-36 shrink-0 rounded-2xl overflow-hidden shadow-inner bg-secondary/30">
+            <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-[1.15rem] bg-secondary/30 shadow-inner sm:h-36 sm:w-36">
                 {item.image_url ? (
                     <img
                         src={item.image_url}
@@ -73,7 +73,7 @@ export function MenuItemCard({ item, onAdd }: MenuItemCardProps) {
             </div>
 
             {/* Content Section */}
-            <div className="flex flex-col flex-1 py-1 justify-between">
+            <div className="flex min-w-0 flex-1 flex-col justify-between py-0.5">
                 <div>
                     <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-1.5">
@@ -90,10 +90,10 @@ export function MenuItemCard({ item, onAdd }: MenuItemCardProps) {
                         </div>
                     </div>
 
-                    <h3 className="font-bold text-base leading-tight mb-1 line-clamp-2 text-foreground group-hover:text-primary transition-colors">
+                    <h3 className="mb-1 line-clamp-2 text-[15px] font-black leading-tight text-foreground transition-colors group-hover:text-primary sm:text-base">
                         {item.name}
                     </h3>
-                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed mb-2">
+                    <p className="mb-2 line-clamp-2 text-[12px] leading-relaxed text-muted-foreground">
                         {item.description}
                     </p>
                     <div className="flex items-center gap-2 mb-2 min-h-[20px]">
@@ -131,17 +131,17 @@ export function MenuItemCard({ item, onAdd }: MenuItemCardProps) {
 
                     <div onClick={(e) => e.stopPropagation()}>
                         {quantity > 0 ? (
-                            <div className="flex items-center bg-primary text-primary-foreground shadow-lg shadow-primary/30 rounded-lg h-8 overflow-hidden">
+                            <div className="flex h-10 items-center overflow-hidden rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25">
                                 <button
                                     onClick={handleDecrement}
-                                    className="w-8 h-full flex items-center justify-center hover:bg-black/10 active:bg-black/20 transition-colors"
+                                    className="tap-target h-full !min-h-10 !min-w-10 flex items-center justify-center transition-colors hover:bg-black/10 active:bg-black/20"
                                 >
                                     <Minus className="w-3.5 h-3.5" strokeWidth={3} />
                                 </button>
-                                <span className="w-6 text-center font-bold text-sm">{quantity}</span>
+                                <span className="w-7 text-center text-sm font-black">{quantity}</span>
                                 <button
                                     onClick={handleIncrement}
-                                    className="w-8 h-full flex items-center justify-center hover:bg-black/10 active:bg-black/20 transition-colors"
+                                    className="tap-target h-full !min-h-10 !min-w-10 flex items-center justify-center transition-colors hover:bg-black/10 active:bg-black/20"
                                 >
                                     <Plus className="w-3.5 h-3.5" strokeWidth={3} />
                                 </button>
@@ -152,7 +152,7 @@ export function MenuItemCard({ item, onAdd }: MenuItemCardProps) {
                                 onClick={handleAddStart}
                                 disabled={!item.is_infinite_stock && item.stock !== undefined && item.stock !== null && item.stock <= 0}
                                 className={cn(
-                                    "h-8 px-5 font-bold uppercase text-[10px] tracking-wider shadow-sm transition-all rounded-lg border",
+                                    "h-10 min-w-[76px] rounded-2xl border px-5 text-[11px] font-black uppercase tracking-wider shadow-sm transition-all active:scale-95",
                                     !item.is_infinite_stock && item.stock !== undefined && item.stock !== null && item.stock <= 0
                                         ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
                                         : "bg-white text-orange-600 border-orange-200 hover:bg-orange-500 hover:text-white hover:border-orange-500 hover:shadow-orange-200"

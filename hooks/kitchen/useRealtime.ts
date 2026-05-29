@@ -14,7 +14,13 @@ export function useRealtime() {
     const playNotificationSound = () => {
         if (!isSoundEnabled) return
 
-        const audioContext = new AudioContext()
+        let audioContext: AudioContext;
+        try {
+            audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        } catch (e) {
+            console.warn('Audio context creation failed:', e);
+            return;
+        }
 
         // Create a more pleasant notification sound
         const playTone = (frequency: number, duration: number, delay: number) => {
@@ -64,6 +70,7 @@ export function useRealtime() {
                     schema: 'public',
                     table: 'orders',
                 },
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 async (payload: any) => {
                     console.log('🔥 [REALTIME] New order received:', payload)
                     if (payload.new.restaurant_id !== RESTAURANT_ID) return
@@ -89,6 +96,7 @@ export function useRealtime() {
                     schema: 'public',
                     table: 'orders',
                 },
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 async (payload: any) => {
                     console.log('🔄 [REALTIME] Order updated:', payload)
                     if (payload.new.restaurant_id !== RESTAURANT_ID) return
@@ -129,6 +137,7 @@ export function useRealtime() {
                     schema: 'public',
                     table: 'order_items',
                 },
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 async (payload: any) => {
                     console.log('📦 [REALTIME] New order item added:', payload)
 
@@ -185,7 +194,7 @@ export function useRealtime() {
             )
             .subscribe((status, err) => {
                 console.log('📡 [REALTIME] Kitchen subscription status:', status)
-                if (err) console.error('❌ [REALTIME] Subscription error:', err)
+                if (err) console.warn('❌ [REALTIME] Subscription error:', err)
                 setConnectionStatus(status === 'SUBSCRIBED')
 
                 if (status === 'SUBSCRIBED') {
@@ -204,5 +213,6 @@ export function useRealtime() {
             channel.unsubscribe()
             clearInterval(interval)
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [RESTAURANT_ID, isSoundEnabled])
 }

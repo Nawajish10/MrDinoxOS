@@ -21,18 +21,18 @@ export async function GET(request: Request) {
     }
 
     try {
-        // Build query
-        // We use 'orders' alias if needed but standard SELECT is fine
+        // Build query - find active order that is NOT paid and NOT closed
         let query = supabaseAdmin
             .from('orders')
-            .select('id, bill_id, total, subtotal, status, payment_status, table_id, customer_id')
+            .select('id, bill_id, total, subtotal, status, payment_status, table_id, customer_id, session_id')
             .eq('restaurant_id', restaurantId)
-            .eq('payment_status', 'pending')  // Only unpaid orders
-            .neq('status', 'cancelled')  // Exclude cancelled only
+            .neq('payment_status', 'paid')  // Allow additions only if not paid
+            .neq('status', 'closed')  // Allow additions only if not closed
+            .neq('status', 'cancelled')  // Exclude cancelled orders
             .order('created_at', { ascending: false })
             .limit(1)
 
-        // Priority Logic similar to CheckoutPage but simpler
+        // Priority Logic for finding active order
         if (tableId && tableId !== 'null') {
             query = query.eq('table_id', tableId)
         } else if (tableNumber && tableNumber !== 'null' && !isNaN(parseInt(tableNumber))) {
@@ -53,7 +53,7 @@ export async function GET(request: Request) {
 
         return NextResponse.json({ order: data })
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('API Handler Error:', error)
         return NextResponse.json({ error: error.message }, { status: 500 })
     }

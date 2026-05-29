@@ -13,7 +13,7 @@ import { Plus, QrCode, Users, Edit, Trash2, Download, Armchair, Zap } from 'luci
 import { supabase, RESTAURANT_ID } from '@/lib/supabase'
 import { RestaurantTable } from '@/types'
 import { toast } from 'sonner'
-import QRCode from 'qrcode'
+import { generateTableMenuQR } from '@/lib/qr-generator'
 import { cn } from '@/lib/utils'
 
 export default function TablesPage() {
@@ -49,30 +49,13 @@ export default function TablesPage() {
         const codes: Record<string, string> = {}
         for (const table of tables) {
             try {
-                // Fetch restaurant phone for direct WhatsApp link
-                const { data: restaurant } = await supabase
-                    .from('restaurants')
-                    .select('whatsapp_number')
-                    .eq('id', RESTAURANT_ID)
-                    .single()
-
-                let phone = '917282871506' // Force user provided number
-                // const dbPhone = restaurant?.whatsapp_number?.replace(/[^0-9]/g, '')
-                // if (dbPhone && dbPhone.length >= 10) phone = dbPhone
-                const text = encodeURIComponent(`I am at Table ${table.table_number}`)
-                const qrValue = `https://wa.me/${phone}?text=${text}`
-
-                const url = await QRCode.toDataURL(qrValue, {
-                    width: 300,
-                    margin: 2,
-                    color: {
-                        dark: '#000000',
-                        light: '#FFFFFF',
-                    },
-                })
-                codes[table.id] = url
+                // Generate QR code for customer menu: /customer/menu?type=dine_in&restaurant=${restaurantId}&table=${tableId}
+                const qrDataUrl = await generateTableMenuQR(RESTAURANT_ID, table.id)
+                codes[table.id] = qrDataUrl
             } catch (err) {
                 console.error(err)
+                // Set a placeholder or error indicator
+                codes[table.id] = '' // Empty string indicates error
             }
         }
         setTableQRCodes(codes)
@@ -90,7 +73,7 @@ export default function TablesPage() {
             if (error) throw error
             setTables(data || [])
         } catch (error) {
-            console.error('Error fetching tables:', error)
+            console.warn('Error fetching tables:', error)
             toast.error('Failed to load tables')
         } finally {
             setLoading(false)
@@ -179,11 +162,11 @@ export default function TablesPage() {
 
         const link = document.createElement('a')
         link.href = url
-        link.download = `table-${table.table_number}-qr.png`
+        link.download = `table-${table.table_number}-menu-qr.png`
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
-        toast.success(`QR Code for Table ${table.table_number} downloaded`)
+        toast.success(`Menu QR Code for Table ${table.table_number} downloaded`)
     }
 
     async function handleTestWebhook(table: RestaurantTable) {
@@ -229,7 +212,7 @@ export default function TablesPage() {
 
             toast.dismiss(toastId)
             toast.success(`Webhook fired! Check n8n Executions.`)
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('❌ [WEBHOOK] Final Error:', error)
             toast.error(`Webhook Failed: ${error.message}`)
         } finally {
@@ -285,8 +268,8 @@ export default function TablesPage() {
                     setEditingTable(null)
                     setTableForm({ table_number: '', table_name: '', capacity: '', status: 'available' })
                     setDialogOpen(true)
-                }} className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 transition-all">
-                    <Plus className="mr-2 h-4 w-4" />
+                }} className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 transition-all min-h-[48px] px-6 active:scale-95 font-bold">
+                    <Plus className="mr-2 h-5 w-5" />
                     Add New Table
                 </Button>
             </PageHeader>
@@ -357,11 +340,11 @@ export default function TablesPage() {
                                     </div>
 
                                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-secondary" onClick={() => openEditDialog(table)}>
-                                            <Edit className="h-3.5 w-3.5" />
+                                        <Button size="icon" variant="ghost" className="h-10 w-10 hover:bg-secondary rounded-full active:scale-95" onClick={() => openEditDialog(table)}>
+                                            <Edit className="h-4 w-4" />
                                         </Button>
-                                        <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-destructive/10 text-destructive" onClick={() => handleDeleteTable(table.id)}>
-                                            <Trash2 className="h-3.5 w-3.5" />
+                                        <Button size="icon" variant="ghost" className="h-10 w-10 hover:bg-destructive/10 text-destructive rounded-full active:scale-95" onClick={() => handleDeleteTable(table.id)}>
+                                            <Trash2 className="h-4 w-4" />
                                         </Button>
                                     </div>
                                 </div>
@@ -369,13 +352,13 @@ export default function TablesPage() {
                                 {/* QR Code Area */}
                                 <div className="bg-white p-3 rounded-lg flex items-center justify-center mb-4 relative group/qr shadow-sm">
                                     {tableQRCodes[table.id] ? (
-                                        <img src={tableQRCodes[table.id]} alt="QR Code" className="w-32 h-32 object-contain mix-blend-multiply" />
+                                        <img src={tableQRCodes[table.id]} alt="Menu QR Code" className="w-32 h-32 object-contain mix-blend-multiply" />
                                     ) : (
                                         <QrCode className="h-32 w-32 text-gray-200" />
                                     )}
                                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/qr:opacity-100 transition-opacity flex flex-col gap-2 items-center justify-center rounded-lg backdrop-blur-[1px]">
-                                        <Button variant="secondary" size="sm" onClick={() => downloadQR(table)} className="font-bold shadow-lg w-32">
-                                            <Download className="h-3.5 w-3.5 mr-2" />
+                                        <Button variant="secondary" size="default" onClick={() => downloadQR(table)} className="font-bold shadow-lg w-32 h-10 active:scale-95">
+                                            <Download className="h-4 w-4 mr-2" />
                                             Download
                                         </Button>
                                     </div>
@@ -384,7 +367,7 @@ export default function TablesPage() {
                                 <Button
                                     variant="outline"
                                     className={cn(
-                                        "w-full font-bold border-2 transition-all",
+                                        "w-full font-bold border-2 transition-all min-h-[48px] active:scale-95",
                                         table.status === 'available'
                                             ? "border-green-500/30 text-green-600 hover:bg-green-500 hover:text-white hover:border-green-500"
                                             : "border-red-500/30 text-red-600 hover:bg-red-500 hover:text-white hover:border-red-500"

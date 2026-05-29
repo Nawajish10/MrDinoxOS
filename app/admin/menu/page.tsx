@@ -1,7 +1,7 @@
 'use client'
 
 // Force rebuild
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { PageHeader } from '@/components/admin/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Search, Edit, Trash2, Image as ImageIcon, Star, Flame, UtensilsCrossed, ArrowRight } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Image as ImageIcon, Star, Flame, UtensilsCrossed } from 'lucide-react'
+import Image from 'next/image'
 import { supabase, RESTAURANT_ID } from '@/lib/supabase'
 import { MenuCategory, MenuItem } from '@/types'
 import { toast } from 'sonner'
@@ -48,25 +49,7 @@ export default function MenuPage() {
         stock: '' as string | number,
         is_infinite_stock: false,
     })
-
-    useEffect(() => {
-        fetchData()
-        const type = localStorage.getItem('restaurant_dietary_type')
-        if (type) setDietaryType(type)
-
-        const ch = supabase.channel('menu-rt')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_categories' }, () => fetchData())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, () => fetchData())
-            .subscribe()
-
-        return () => { supabase.removeChannel(ch) }
-    }, [])
-
-    useEffect(() => {
-        filterItems()
-    }, [items, searchTerm, selectedCategory])
-
-    async function fetchData() {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true)
 
@@ -87,12 +70,29 @@ export default function MenuPage() {
             setCategories(cats || [])
             setItems((menuItems || []).filter(i => !i.name.startsWith('[DELETED]')))
         } catch (error) {
-            console.error('Error fetching menu data:', error)
+            console.warn('Error fetching menu data:', error)
             toast.error('Failed to load menu data')
         } finally {
             setLoading(false)
         }
-    }
+    }, [])
+
+    useEffect(() => {
+        fetchData()
+        const type = localStorage.getItem('restaurant_dietary_type')
+        if (type) setDietaryType(type)
+
+        const ch = supabase.channel('menu-rt')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_categories' }, () => fetchData())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, () => fetchData())
+            .subscribe()
+
+        return () => { supabase.removeChannel(ch) }
+    }, [fetchData])
+
+    useEffect(() => {
+        filterItems()
+    }, [items, searchTerm, selectedCategory])
 
     function filterItems() {
         let filtered = [...items]
@@ -176,10 +176,7 @@ export default function MenuPage() {
                 image_url: itemForm.image_url || null,
                 is_veg: itemForm.is_veg,
                 is_bestseller: itemForm.is_bestseller,
-                is_veg: itemForm.is_veg,
-                is_bestseller: itemForm.is_bestseller,
                 is_available: true, // Always true, managed by stock
-                is_spicy: itemForm.is_spicy,
                 is_spicy: itemForm.is_spicy,
                 spicy_level: itemForm.spicy_level,
                 is_new: false,
@@ -228,7 +225,7 @@ export default function MenuPage() {
             })
             setEditingItem(null)
             fetchData()
-        } catch (error: any) {
+        } catch (error) {
             console.error('Error saving item FULL:', JSON.stringify(error, null, 2))
             console.error('Error object:', error)
             toast.error('Failed to save menu item')
@@ -282,9 +279,10 @@ export default function MenuPage() {
             }
             toast.success('Menu item deleted successfully')
             fetchData()
-        } catch (error: any) {
+        } catch (error) {
             console.error('Error deleting item:', error)
-            toast.error(`Failed to delete: ${error.message || 'Unknown error'}`)
+            const message = error instanceof Error ? error.message : 'Unknown error'
+            toast.error(`Failed to delete: ${message}`)
         }
     }
 
@@ -338,7 +336,7 @@ export default function MenuPage() {
                         setEditingCategory(null)
                         setCategoryForm({ name: '', description: '' })
                         setCategoryDialogOpen(true)
-                    }} variant="outline" className="glass-panel hover:bg-white/20 border-primary/20 bg-primary/5">
+                    }} variant="outline" className="glass-panel hover:bg-white/20 border-primary/20 bg-primary/5 min-h-[48px] px-4 active:scale-95 transition-all">
                         <Plus className="mr-2 h-4 w-4 text-primary" />
                         Add Category
                     </Button>
@@ -359,8 +357,8 @@ export default function MenuPage() {
                             is_infinite_stock: false,
                         })
                         setItemDialogOpen(true)
-                    }} className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20">
-                        <Plus className="mr-2 h-4 w-4" />
+                    }} className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 min-h-[48px] px-6 active:scale-95 transition-all font-bold">
+                        <Plus className="mr-2 h-5 w-5" />
                         Add New Item
                     </Button>
                 </div>
@@ -393,11 +391,11 @@ export default function MenuPage() {
                                     </div>
                                 </div>
                                 <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                                    <Button size="icon" variant="secondary" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); openEditCategory(category); }}>
-                                        <Edit className="h-3 w-3" />
+                                    <Button size="icon" variant="secondary" className="h-10 w-10 active:scale-95 shadow-sm rounded-full" onClick={(e) => { e.stopPropagation(); openEditCategory(category); }}>
+                                        <Edit className="h-4 w-4" />
                                     </Button>
-                                    <Button size="icon" variant="destructive" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); handleDeleteCategory(category.id); }}>
-                                        <Trash2 className="h-3 w-3" />
+                                    <Button size="icon" variant="destructive" className="h-10 w-10 active:scale-95 shadow-sm rounded-full" onClick={(e) => { e.stopPropagation(); handleDeleteCategory(category.id); }}>
+                                        <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </div>
                             </div>
@@ -414,19 +412,19 @@ export default function MenuPage() {
                             <div className="relative flex-1 w-full">
                                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Search Menu</Label>
                                 <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                    <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
                                     <Input
                                         placeholder="Find burgers, pizzas..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="pl-10 bg-background/50 border-input/50 focus:bg-background transition-all"
+                                        className="pl-12 bg-background/50 border-input/50 focus:bg-background transition-all h-12 text-base rounded-xl"
                                     />
                                 </div>
                             </div>
                             <div className="w-full md:w-56">
                                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Filter Category</Label>
                                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                                    <SelectTrigger className="bg-background/50 border-input/50">
+                                    <SelectTrigger className="bg-background/50 border-input/50 h-12 text-base rounded-xl">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -458,7 +456,7 @@ export default function MenuPage() {
                                     {/* Image Area */}
                                     <div className="aspect-[4/3] bg-muted relative overflow-hidden">
                                         {item.image_url ? (
-                                            <img src={item.image_url} alt={item.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                            <Image src={item.image_url} alt={item.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" fill sizes="100%" />
                                         ) : (
                                             <div className="h-full w-full flex items-center justify-center bg-secondary/30">
                                                 <ImageIcon className="h-10 w-10 text-muted-foreground/30" />
@@ -501,8 +499,8 @@ export default function MenuPage() {
 
                                         <div className="flex items-center justify-between text-xs font-medium text-muted-foreground pt-3 border-t border-border/50">
                                             <span className="flex items-center gap-1.5">
-                                                <div className={cn("h-2 w-2 rounded-full animate-pulse", (item.stock !== null && item.stock <= 0) ? "bg-red-500" : ((item.stock !== null && item.stock < 10) ? "bg-amber-500" : "bg-green-500"))} />
-                                                {(item.stock !== null && item.stock <= 0) ? 'Out of Stock' : ((item.stock !== null && item.stock < 10) ? 'Low Stock' : 'Available')}
+                                                <div className={cn("h-2 w-2 rounded-full animate-pulse", (typeof item.stock === 'number' && item.stock <= 0) ? "bg-red-500" : ((typeof item.stock === 'number' && item.stock < 10) ? "bg-amber-500" : "bg-green-500"))} />
+                                                {(typeof item.stock === 'number' && item.stock <= 0) ? 'Out of Stock' : ((typeof item.stock === 'number' && item.stock < 10) ? 'Low Stock' : 'Available')}
                                             </span>
                                             {item.is_spicy && (
                                                 <span className="flex items-center text-orange-500 font-bold" title="Spicy">

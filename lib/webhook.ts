@@ -1,4 +1,4 @@
-export async function triggerPaymentWebhook(payload: any) {
+export async function triggerPaymentWebhook(payload: Record<string, unknown>) {
     try {
         console.log('🚀 Triggering Webhook (Proxy):', payload)
         // Use internal API proxy to avoid CORS

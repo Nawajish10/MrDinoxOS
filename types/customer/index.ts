@@ -1,5 +1,5 @@
 export type OrderType = 'dine_in' | 'take_away' | 'home_delivery';
-export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'completed' | 'cancelled';
+export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'completed' | 'cancelled' | 'active' | 'bill_requested' | 'closed';
 export type PaymentStatus = 'pending' | 'paid';
 export type PaymentMethod = 'cash' | 'upi';
 export type TableStatus = 'available' | 'occupied';
@@ -82,12 +82,22 @@ export interface Customer {
     total_spent: number;
 }
 
+export interface KitchenTicket {
+    id: string;
+    order_id: string;
+    ticket_number: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+}
+
 export interface Order {
     id: string;
     bill_id: string;
     restaurant_id: string;
     customer_id: string | null;
     table_id: string | null;
+    session_id: string | null;
     order_type: OrderType;
     status: OrderStatus;
     payment_status: PaymentStatus;
@@ -103,6 +113,7 @@ export interface Order {
     created_at: string;
     updated_at: string;
     order_items?: OrderItem[];
+    kitchen_tickets?: KitchenTicket[];
     restaurant_tables?: {
         table_number: number;
     };
@@ -111,6 +122,7 @@ export interface Order {
 export interface OrderItem {
     id: string;
     order_id: string;
+    ticket_id: string | null;
     menu_item_id: string;
     item_name: string;
     quantity: number;
@@ -118,6 +130,7 @@ export interface OrderItem {
     total: number;
     special_instructions: string | null;
     status: 'pending' | 'preparing' | 'ready';
+    created_at?: string;
 }
 
 export interface CartItem extends MenuItem {

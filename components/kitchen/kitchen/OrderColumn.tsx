@@ -39,16 +39,16 @@ export default function OrderColumn({ title, orders, emptyMessage, columnType }:
     const Icon = config.icon
 
     return (
-        <div className="flex h-full flex-col rounded-xl border-2 border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+        <div className="flex h-full overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/8 shadow-2xl shadow-black/20 backdrop-blur-xl flex-col">
             {/* Column Header */}
             <div className={`relative bg-gradient-to-r ${config.gradient} px-5 py-4 shadow-lg`}>
                 <div className="relative z-10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/20 backdrop-blur-sm">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
                             <Icon className="h-5 w-5 text-white" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold tracking-tight text-white">
+                            <h2 className="text-xl font-black tracking-tight text-white">
                                 {title}
                             </h2>
                             <p className="text-xs font-medium text-white/80">
@@ -72,9 +72,9 @@ export default function OrderColumn({ title, orders, emptyMessage, columnType }:
             </div>
 
             {/* Orders List */}
-            <div className="flex-1 space-y-3 overflow-y-auto p-4">
+            <div className="momentum-scroll flex-1 space-y-3 overflow-y-auto p-3 sm:p-4">
                 {orders.length === 0 ? (
-                    <div className="flex h-full flex-col items-center justify-center space-y-3 rounded-xl border-2 border-dashed border-border/50 bg-muted/20 p-8 text-center">
+                    <div className="flex h-full flex-col items-center justify-center space-y-3 rounded-[1.5rem] border border-dashed border-white/15 bg-white/8 p-8 text-center">
                         <div className="rounded-full bg-muted/50 p-4">
                             <Icon className="h-8 w-8 text-muted-foreground/50" />
                         </div>

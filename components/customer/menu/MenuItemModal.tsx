@@ -1,14 +1,13 @@
 'use client'
+/* eslint-disable @next/next/no-img-element */
 
 import React, { useState, useEffect } from 'react'
 import { MenuItem } from '@/types'
 import {
     Dialog,
     DialogContent,
-    DialogHeader,
     DialogTitle,
     DialogDescription,
-    DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,8 +15,6 @@ import { Badge } from '@/components/ui/badge'
 import { useCartStore } from '@/store/cartStore'
 import { toast } from 'sonner'
 import { Minus, Plus, Flame, ChefHat } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { cn } from '@/lib/utils'
 
 interface MenuItemModalProps {
     item: MenuItem | null
@@ -52,12 +49,12 @@ export function MenuItemModal({ item, isOpen, onClose }: MenuItemModalProps) {
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden border-0 rounded-2xl shadow-xl bg-white max-h-[90vh] flex flex-col">
+            <DialogContent className="bottom-0 top-auto translate-y-0 sm:top-1/2 sm:-translate-y-1/2 sm:max-w-md p-0 gap-0 overflow-hidden border-0 rounded-t-[2rem] sm:rounded-[2rem] shadow-2xl bg-white max-h-[92svh] flex flex-col">
 
                 {/* Scrollable Content Area */}
                 <div className="overflow-y-auto flex-1">
                     {/* Hero Image */}
-                    <div className="relative h-64 w-full bg-gray-100">
+                    <div className="relative h-64 w-full bg-gray-100 sm:h-72">
                         {item.image_url ? (
                             <img
                                 src={item.image_url}
@@ -85,17 +82,17 @@ export function MenuItemModal({ item, isOpen, onClose }: MenuItemModalProps) {
 
                         <button
                             onClick={onClose}
-                            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md flex items-center justify-center text-white transition-all shadow-sm z-10"
+                            className="tap-target absolute top-4 right-4 z-10 flex rounded-full bg-black/50 text-white shadow-sm backdrop-blur-md transition-all hover:bg-black/70 items-center justify-center"
                         >
                             <span className="text-xl leading-none">&times;</span>
                         </button>
                     </div>
 
                     {/* Content Body */}
-                    <div className="p-5 space-y-5">
+                    <div className="space-y-5 p-5">
                         <div className="space-y-2">
                             <div className="flex justify-between items-start gap-3">
-                                <DialogTitle className="text-2xl font-black leading-tight text-foreground">{item.name}</DialogTitle>
+                                <DialogTitle className="text-2xl font-black leading-tight tracking-tight text-foreground">{item.name}</DialogTitle>
                                 <div className="flex flex-col items-end shrink-0">
                                     {item.discounted_price ? (
                                         <>
@@ -141,25 +138,25 @@ export function MenuItemModal({ item, isOpen, onClose }: MenuItemModalProps) {
                                 placeholder="e.g. Less spicy, extra sauce..."
                                 value={instructions}
                                 onChange={(e) => setInstructions(e.target.value)}
-                                className="bg-gray-50 border-gray-200 focus:bg-white focus:border-primary h-11 rounded-xl transition-all"
+                                className="h-12 rounded-2xl border-gray-200 bg-gray-50 transition-all focus:bg-white focus:border-primary"
                             />
                         </div>
                     </div>
                 </div>
 
                 {/* Footer Action Bar */}
-                <div className="p-4 bg-white border-t flex items-center gap-4 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-10">
-                    <div className="flex items-center bg-gray-100 rounded-xl px-2 h-12 shrink-0">
+                <div className="safe-bottom z-10 flex items-center gap-3 border-t bg-white p-4 shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
+                    <div className="flex h-14 shrink-0 items-center rounded-2xl bg-gray-100 px-1">
                         <button
                             onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                            className="w-10 h-full flex items-center justify-center hover:bg-gray-200 rounded-lg transition-colors"
+                            className="tap-target flex h-full items-center justify-center rounded-xl transition-colors hover:bg-gray-200"
                         >
                             <Minus className="w-4 h-4" />
                         </button>
-                        <span className="w-8 text-center font-bold text-lg">{quantity}</span>
+                        <span className="w-8 text-center text-lg font-black">{quantity}</span>
                         <button
                             onClick={() => setQuantity(quantity + 1)}
-                            className="w-10 h-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-lg transition-colors"
+                            className="tap-target flex h-full items-center justify-center rounded-xl transition-colors hover:bg-gray-200 dark:hover:bg-zinc-700"
                         >
                             <Plus className="w-4 h-4" />
                         </button>
@@ -167,7 +164,7 @@ export function MenuItemModal({ item, isOpen, onClose }: MenuItemModalProps) {
 
                     <Button
                         onClick={handleAddToCart}
-                        className="flex-1 h-12 rounded-xl text-base font-bold shadow-lg shadow-primary/25 hover:shadow-primary/40 active:scale-[0.98] transition-all"
+                        className="h-14 flex-1 rounded-2xl text-base font-black shadow-lg shadow-primary/25 transition-all hover:shadow-primary/40 active:scale-[0.98]"
                     >
                         Add Item - ₹{((item.discounted_price || item.price) * quantity).toFixed(2)}
                     </Button>

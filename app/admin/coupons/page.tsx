@@ -60,7 +60,7 @@ export default function CouponsPage() {
 
             if (error) throw error
             setCoupons(data || [])
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error fetching coupons FULL:', JSON.stringify(error, null, 2))
             console.error('Error object:', error)
             toast.error('Failed to load coupons')

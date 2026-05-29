@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
@@ -19,6 +19,11 @@ export default function AppPreviewPage() {
     const [activeTab, setActiveTab] = useState<'customer' | 'kitchen'>('customer')
     const [customerKey, setCustomerKey] = useState(0)
     const [kitchenKey, setKitchenKey] = useState(0)
+    const [origin, setOrigin] = useState('app.restaurantos.com')
+
+    useEffect(() => {
+        setOrigin(window.location.host)
+    }, [])
 
     const refreshCustomer = () => setCustomerKey(prev => prev + 1)
     const refreshKitchen = () => setKitchenKey(prev => prev + 1)
@@ -133,8 +138,8 @@ export default function AppPreviewPage() {
                                             <div className="h-3 w-3 rounded-full bg-yellow-400"></div>
                                             <div className="h-3 w-3 rounded-full bg-green-400"></div>
                                         </div>
-                                        <div className="flex-1 bg-white rounded-lg px-4 py-1 text-xs text-gray-500 font-mono">
-                                            localhost:3000/customer
+                                        <div className="flex-1 bg-white rounded-lg px-4 py-1 text-xs text-gray-500 font-mono truncate">
+                                            {origin}/customer
                                         </div>
                                     </div>
 
@@ -183,8 +188,8 @@ export default function AppPreviewPage() {
                                             <div className="h-3 w-3 rounded-full bg-yellow-400"></div>
                                             <div className="h-3 w-3 rounded-full bg-green-400"></div>
                                         </div>
-                                        <div className="flex-1 bg-white rounded-lg px-4 py-1 text-xs text-gray-500 font-mono">
-                                            localhost:3000/kitchen
+                                        <div className="flex-1 bg-white rounded-lg px-4 py-1 text-xs text-gray-500 font-mono truncate">
+                                            {origin}/kitchen
                                         </div>
                                     </div>
 

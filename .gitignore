@@ -45,6 +45,9 @@ Thumbs.db
 *.swp
 *.swo
 *~
+*.py
+*.bak
+out.txt
 
 # IDE
 .vscode/

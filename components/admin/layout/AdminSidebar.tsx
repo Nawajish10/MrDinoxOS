@@ -48,24 +48,24 @@ export function AdminSidebar() {
     return (
         <aside
             className={cn(
-                'fixed left-0 top-0 z-40 h-screen transition-all duration-300 flex flex-col glass-sidebar bg-white border-r border-gray-100 shadow-xl',
+                'fixed left-0 top-0 z-40 h-screen transition-all duration-300 flex flex-col glass-sidebar border-r border-gray-800 shadow-xl',
                 sidebarOpen ? 'w-64' : 'w-20'
             )}
         >
             {/* Logo & Toggle */}
-            <div className="flex h-16 items-center justify-between px-4 border-b border-gray-100">
+            <div className="flex h-16 items-center justify-between px-4 border-b border-gray-800">
                 {sidebarOpen ? (
                     <div className="flex items-center gap-3 animate-in fade-in duration-300">
-                        <div className="h-9 w-9 rounded-xl bg-green-600 flex items-center justify-center text-white shadow-lg shadow-green-500/20 ring-1 ring-green-600/20">
+                        <div className="h-9 w-9 rounded-xl bg-red-600 flex items-center justify-center text-white shadow-lg shadow-red-500/20 ring-1 ring-red-600/20">
                             <Store className="h-5 w-5" />
                         </div>
-                        <span className="text-xl font-black tracking-tight text-gray-900">
-                            TastyBytes
+                        <span className="text-xl font-black tracking-tight text-white">
+                            Mr Dinox
                         </span>
                     </div>
                 ) : (
                     <div className="mx-auto">
-                        <div className="h-9 w-9 rounded-xl bg-green-600 flex items-center justify-center text-white shadow-lg shadow-green-500/20 ring-1 ring-green-600/20">
+                        <div className="h-9 w-9 rounded-xl bg-red-600 flex items-center justify-center text-white shadow-lg shadow-red-500/20 ring-1 ring-red-600/20">
                             <Store className="h-5 w-5" />
                         </div>
                     </div>
@@ -76,7 +76,7 @@ export function AdminSidebar() {
                         variant="ghost"
                         size="icon"
                         onClick={toggleSidebar}
-                        className="h-8 w-8 text-gray-400 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                        className="h-8 w-8 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                     >
                         <ChevronLeft className="h-4 w-4" />
                     </Button>
@@ -96,13 +96,13 @@ export function AdminSidebar() {
                             className={cn(
                                 'flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-all duration-300 group relative overflow-hidden',
                                 isActive
-                                    ? 'bg-green-50 text-green-700 font-bold shadow-sm'
-                                    : 'text-gray-500 hover:bg-green-50 hover:text-green-600',
+                                    ? 'bg-red-500/10 text-red-400 font-bold shadow-sm'
+                                    : 'text-gray-400 hover:bg-red-500/10 hover:text-red-400',
                                 !sidebarOpen && 'justify-center px-2'
                             )}
                             title={!sidebarOpen ? item.label : undefined}
                         >
-                            {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-600 rounded-r-full" />}
+                            {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500 rounded-r-full" />}
 
                             <Icon className={cn(
                                 "h-5 w-5 shrink-0 transition-transform duration-300",
@@ -121,12 +121,12 @@ export function AdminSidebar() {
 
             {/* Collapse Button (Desktop only when closed to re-open easily) */}
             {!sidebarOpen && (
-                <div className="p-3 border-t border-gray-100 mt-auto">
+                <div className="p-3 border-t border-gray-800 mt-auto">
                     <Button
                         variant="ghost"
                         size="icon"
                         onClick={toggleSidebar}
-                        className="w-full h-10 flex justify-center text-gray-500 hover:text-green-700 hover:bg-green-50 rounded-xl transition-colors"
+                        className="w-full h-10 flex justify-center text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
                     >
                         <ChevronRight className="h-5 w-5" />
                     </Button>

@@ -50,6 +50,8 @@ export default function AdminDashboard() {
     const [stats, setStats] = useState({
         totalRevenue: 0,
         activeOrders: 0,
+        openBills: 0,
+        servedWaitingPayment: 0,
         totalOrders: 0,
         totalCustomers: 0,
         peakHours: [] as number[],
@@ -106,6 +108,22 @@ export default function AdminDashboard() {
                 .neq('status', 'completed')
                 .neq('status', 'cancelled')
 
+            // Fetch Open Bills
+            const { count: openBills } = await supabase
+                .from('orders')
+                .select('*', { count: 'exact', head: true })
+                .eq('restaurant_id', RESTAURANT_ID)
+                .eq('is_open_bill', true)
+                .eq('payment_status', 'pending')
+
+            // Fetch Served Waiting Payment
+            const { count: servedWaitingPayment } = await supabase
+                .from('orders')
+                .select('*', { count: 'exact', head: true })
+                .eq('restaurant_id', RESTAURANT_ID)
+                .eq('status', 'served')
+                .eq('payment_status', 'pending')
+
             // Fetch Total Orders in Range
             const { count: totalOrders } = await supabase
                 .from('orders')
@@ -124,6 +142,8 @@ export default function AdminDashboard() {
                 ...prev,
                 totalRevenue,
                 activeOrders: activeOrders || 0,
+                openBills: openBills || 0,
+                servedWaitingPayment: servedWaitingPayment || 0,
                 totalOrders: totalOrders || 0,
                 totalCustomers: totalCustomers || 0,
             }))
@@ -157,7 +177,7 @@ export default function AdminDashboard() {
             // Low Stock check moved to AdminHeader for global notification support
 
         } catch (error) {
-            console.error('Error fetching dashboard data:', error)
+            console.warn('Error fetching dashboard data:', error)
         } finally {
             setLoading(false)
         }
@@ -335,20 +355,20 @@ export default function AdminDashboard() {
     }
 
     return (
-        <div className="space-y-8 p-8 max-w-[1600px] mx-auto animate-in fade-in duration-500 text-black">
+        <div className="mx-auto max-w-[1600px] space-y-6 p-4 text-black animate-in fade-in duration-500 sm:p-6 lg:p-8">
             {/* Header Section */}
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
                 <div className="space-y-1">
-                    <h2 className="text-4xl font-black tracking-tight text-gradient">Dashboard Overview</h2>
+                    <h2 className="text-3xl font-black tracking-tight text-gradient sm:text-4xl">Dashboard Overview</h2>
                     <p className="text-gray-500 font-medium">Real-time insights and performance metrics.</p>
                 </div>
-                <div className="flex items-center gap-2 bg-white/50 p-1 rounded-xl border border-gray-200">
+                <div className="flex w-full items-center gap-2 rounded-2xl border border-gray-200 bg-white/70 p-1 shadow-sm sm:w-auto">
                     <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => setRange('today')}
                         className={cn(
-                            "rounded-lg text-xs font-semibold h-8 transition-all",
+                            "h-10 flex-1 rounded-xl text-xs font-black transition-all sm:flex-none",
                             range === 'today' ? "bg-white border border-gray-200 text-black shadow-sm" : "hover:bg-gray-100 text-gray-500"
                         )}
                     >
@@ -359,7 +379,7 @@ export default function AdminDashboard() {
                         size="sm"
                         onClick={() => setRange('week')}
                         className={cn(
-                            "rounded-lg text-xs font-semibold h-8 transition-all",
+                            "h-10 flex-1 rounded-xl text-xs font-black transition-all sm:flex-none",
                             range === 'week' ? "bg-white border border-gray-200 text-black shadow-sm" : "hover:bg-gray-100 text-gray-500"
                         )}
                     >
@@ -370,7 +390,7 @@ export default function AdminDashboard() {
                         size="sm"
                         onClick={() => setRange('month')}
                         className={cn(
-                            "rounded-lg text-xs font-semibold h-8 transition-all",
+                            "h-10 flex-1 rounded-xl text-xs font-black transition-all sm:flex-none",
                             range === 'month' ? "bg-white border border-gray-100 text-black shadow-sm" : "hover:bg-gray-100 text-gray-500"
                         )}
                     >
@@ -380,7 +400,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Metrics Grid */}
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
                 {[
                     {
                         title: "Total Revenue",
@@ -388,9 +408,9 @@ export default function AdminDashboard() {
                         icon: DollarSign,
                         trend: "+20.1% from yesterday",
                         trendUp: true,
-                        color: "bg-green-500",
-                        textColor: "text-green-600",
-                        iconBg: "bg-green-100",
+                        color: "bg-red-500",
+                        textColor: "text-red-600",
+                        iconBg: "bg-red-100",
                     },
                     {
                         title: "Active Orders",
@@ -401,6 +421,16 @@ export default function AdminDashboard() {
                         color: "bg-blue-500",
                         textColor: "text-blue-600",
                         iconBg: "bg-blue-100",
+                    },
+                    {
+                        title: "Open Bills",
+                        value: stats.openBills.toString(),
+                        icon: Clock,
+                        trend: `${stats.servedWaitingPayment} waiting payment`,
+                        trendUp: false,
+                        color: "bg-amber-500",
+                        textColor: "text-amber-600",
+                        iconBg: "bg-amber-100",
                     },
                     {
                         title: "Total Orders",
@@ -423,10 +453,10 @@ export default function AdminDashboard() {
                         iconBg: "bg-orange-100",
                     },
                 ].map((stat, index) => (
-                    <Card key={index} className="glass-card border border-gray-100 shadow-sm relative group bg-white hover:border-green-500/30 hover:shadow-lg transition-all duration-300">
+                    <Card key={index} className="touch-card relative group overflow-hidden rounded-[1.35rem] bg-white transition-all duration-300 hover:border-red-500/30 hover:shadow-lg">
                         <div className={`absolute left-0 top-0 bottom-0 w-1 ${stat.color} rounded-l-xl opacity-80 group-hover:opacity-100 transition-opacity`} />
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
-                            <CardTitle className="text-xs font-bold text-gray-500 uppercase tracking-wider group-hover:text-green-700 transition-colors">
+                            <CardTitle className="text-xs font-bold text-gray-500 uppercase tracking-wider group-hover:text-red-700 transition-colors">
                                 {stat.title}
                             </CardTitle>
                             <div className={cn("p-2.5 rounded-xl transition-all duration-300 group-hover:scale-110 shadow-sm", stat.iconBg)}>
@@ -434,10 +464,10 @@ export default function AdminDashboard() {
                             </div>
                         </CardHeader>
                         <CardContent className="relative z-10">
-                            <div className="text-3xl font-black tracking-tight text-gray-900">{stat.value}</div>
+                            <div className="text-2xl font-black tracking-tight text-gray-900 sm:text-3xl">{stat.value}</div>
                             <p className="text-xs text-gray-500 mt-1 font-medium flex items-center gap-1">
-                                {stat.trendUp ? <TrendingUp className="h-3 w-3 text-green-500" /> : <TrendingUp className="h-3 w-3 text-red-500 rotate-180" />}
-                                <span className={stat.trendUp ? "text-green-600" : "text-red-600"}>{stat.trend}</span>
+                                {stat.trendUp ? <TrendingUp className="h-3 w-3 text-red-500" /> : <TrendingUp className="h-3 w-3 text-red-500 rotate-180" />}
+                                <span className={stat.trendUp ? "text-red-600" : "text-red-600"}>{stat.trend}</span>
                             </p>
                         </CardContent>
                     </Card>
@@ -445,9 +475,9 @@ export default function AdminDashboard() {
             </div>
 
             {/* Main Content Area */}
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
+            <div className="grid gap-4 lg:grid-cols-7">
                 {/* Peak Hours Chart */}
-                <Card className="col-span-7 lg:col-span-7 glass-card border-gray-100 bg-white shadow-sm p-6 relative overflow-hidden group hover:border-blue-500/20 hover:shadow-md transition-all duration-300">
+                <Card className="relative overflow-hidden rounded-[1.5rem] border-gray-100 bg-white p-4 shadow-sm transition-all duration-300 hover:border-blue-500/20 hover:shadow-md sm:p-6 lg:col-span-7">
                     <CardHeader className="p-0 pb-4 border-b border-gray-50 flex flex-row justify-between items-center">
                         <div className="space-y-1">
                             <CardTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -483,7 +513,7 @@ export default function AdminDashboard() {
                     </CardContent>
                 </Card>
                 {/* Recent Orders */}
-                <Card className="col-span-4 glass-card border-gray-100 bg-white shadow-sm hover:border-green-500/20 hover:shadow-md transition-all duration-300">
+                <Card className="rounded-[1.5rem] border-gray-100 bg-white shadow-sm transition-all duration-300 hover:border-red-500/20 hover:shadow-md lg:col-span-4">
                     <CardHeader className="flex flex-row items-center justify-between pb-2 border-b border-gray-100">
                         <div className="space-y-1">
                             <CardTitle className="text-xl font-bold text-gray-900">Recent Orders</CardTitle>
@@ -491,7 +521,7 @@ export default function AdminDashboard() {
                                 You have {stats.activeOrders} active orders right now.
                             </CardDescription>
                         </div>
-                        <Button variant="ghost" size="sm" className="text-green-600 hover:text-green-700 hover:bg-green-50 font-bold text-xs" asChild>
+                        <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50 font-bold text-xs" asChild>
                             <Link href="/admin/orders">View All <ChevronRight className="h-3 w-3 ml-1" /></Link>
                         </Button>
                     </CardHeader>
@@ -503,19 +533,24 @@ export default function AdminDashboard() {
                                 </div>
                             ) : (
                                 recentOrders.map((order, i) => (
-                                    <div
-                                        key={order.id}
-                                        className="flex items-center p-4 hover:bg-green-50 transition-all cursor-pointer border-b border-gray-100 last:border-0 group relative overflow-hidden"
-                                        onClick={() => handleOrderClick(order)}
-                                    >
-                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+<div
+                                            key={order.id}
+                                            className="flex items-center p-4 hover:bg-red-50 transition-all cursor-pointer border-b border-gray-100 last:border-0 group relative overflow-hidden"
+                                            onClick={() => handleOrderClick(order)}
+                                        >
+                                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500 opacity-0 group-hover:opacity-100 transition-opacity" />
 
-                                        <div className="flex-1 min-w-0 grid grid-cols-12 gap-4 items-center pl-2">
-                                            {/* ID & Status */}
-                                            <div className="col-span-3">
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold text-gray-900 group-hover:text-green-700 transition-colors">#{order.bill_id}</span>
-                                                    <span className="text-[10px] text-gray-500 flex items-center gap-1">
+                                            <div className="flex-1 min-w-0 grid grid-cols-12 gap-4 items-center pl-2">
+                                                {/* ID & Status */}
+                                                <div className="col-span-3">
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold text-gray-900 group-hover:text-red-700 transition-colors flex items-center gap-2">
+                                                            #{order.bill_id}
+                                                            {order.is_open_bill && (
+                                                                <span className="bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5 rounded-sm font-bold uppercase">Running</span>
+                                                            )}
+                                                        </span>
+                                                    <span className="text-[10px] text-gray-500 flex items-center gap-1 mt-0.5">
                                                         <Clock className="h-2.5 w-2.5" /> {getTimeAgo(order.created_at)}
                                                     </span>
                                                 </div>
@@ -557,7 +592,7 @@ export default function AdminDashboard() {
                                                 </Badge>
                                             </div>
                                         </div>
-                                        <ChevronRight className="h-4 w-4 text-green-600 ml-4 opacity-0 group-hover:opacity-100 transition-all transform group-hover:translate-x-1" />
+                                        <ChevronRight className="h-4 w-4 text-red-600 ml-4 opacity-0 group-hover:opacity-100 transition-all transform group-hover:translate-x-1" />
                                     </div>
                                 ))
                             )}
@@ -566,8 +601,8 @@ export default function AdminDashboard() {
                 </Card>
 
                 {/* Kitchen Activity / Secondary Metrics */}
-                <div className="col-span-3 space-y-6">
-                    <Card className="glass-card border-gray-100 shadow-sm h-full relative overflow-hidden bg-white hover:border-green-500/20 hover:shadow-md transition-all duration-300">
+                <div className="space-y-4 lg:col-span-3 lg:space-y-6">
+                    <Card className="relative h-full overflow-hidden rounded-[1.5rem] border-gray-100 bg-white shadow-sm transition-all duration-300 hover:border-red-500/20 hover:shadow-md">
                         <div className="absolute inset-0 bg-gradient-to-t from-gray-50 via-transparent to-transparent z-0" />
                         <CardHeader className="relative z-10 border-b border-gray-50 pb-4">
                             <CardTitle className="font-bold text-gray-900">Live Kitchen Activity</CardTitle>
@@ -578,7 +613,7 @@ export default function AdminDashboard() {
                                 {[
                                     { label: 'Pending', count: stats.activeOrders, color: 'bg-yellow-500', icon: Clock },
                                     { label: 'Preparing', count: Math.floor(stats.activeOrders * 0.4), color: 'bg-orange-500', icon: UtensilsCrossed },
-                                    { label: 'Ready', count: Math.floor(stats.activeOrders * 0.6), color: 'bg-green-500', icon: CheckCircle2 },
+                                    { label: 'Ready', count: Math.floor(stats.activeOrders * 0.6), color: 'bg-red-500', icon: CheckCircle2 },
                                 ].map((step, idx) => (
                                     <div key={idx} className="space-y-2 group">
                                         <div className="flex items-center justify-between text-sm font-medium">
@@ -601,7 +636,7 @@ export default function AdminDashboard() {
                             </div>
 
                             <div className="mt-8 p-4 rounded-2xl bg-gray-900 border border-gray-800 text-center shadow-xl relative overflow-hidden group hover:scale-[1.02] transition-transform duration-300">
-                                <div className="absolute top-0 right-0 w-20 h-20 bg-green-500/20 rounded-full blur-xl -mr-10 -mt-10" />
+                                <div className="absolute top-0 right-0 w-20 h-20 bg-red-500/20 rounded-full blur-xl -mr-10 -mt-10" />
                                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1 relative z-10">Kitchen Efficiency</p>
                                 <p className="text-3xl font-black text-white relative z-10">94%</p>
                                 <p className="text-[10px] text-gray-500 mt-1 relative z-10">Avg. prep time: 12m</p>
@@ -736,22 +771,53 @@ export default function AdminDashboard() {
                             {/* Actions Footer - Fixed at Bottom */}
                             <div className="p-6 pt-2 shrink-0 bg-white border-t border-gray-50 z-10">
                                 {selectedOrder.status !== 'completed' && selectedOrder.payment_status !== 'paid' ? (
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <Button
-                                            className="h-11 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold shadow-sm"
-                                            onClick={() => handlePayment('cash')}
-                                            disabled={processingPayment}
-                                        >
-                                            <DollarSign className="mr-2 h-4 w-4" /> Collect Cash
-                                        </Button>
-                                        <Button
-                                            className="h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm"
-                                            onClick={() => handlePayment('upi')}
-                                            disabled={processingPayment}
-                                        >
-                                            <Smartphone className="mr-2 h-4 w-4" /> Collect UPI
-                                        </Button>
-                                    </div>
+                                    <>
+                                        {(selectedOrder.status === 'served' || selectedOrder.payment_status === 'requested') ? (
+                                            selectedOrder.payment_status === 'requested' ? (
+                                                <div className="flex flex-col gap-2">
+                                                    <div className={cn(
+                                                        "w-full p-3 rounded-xl flex items-center justify-center font-bold text-sm gap-2 border",
+                                                        selectedOrder.payment_method === 'upi' ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-red-50 border-red-200 text-red-700"
+                                                    )}>
+                                                        {selectedOrder.payment_method === 'upi' ? <Smartphone className="h-5 w-5" /> : <DollarSign className="h-5 w-5" />}
+                                                        Customer selected {selectedOrder.payment_method?.toUpperCase() || 'CASH'}
+                                                    </div>
+                                                    <Button
+                                                        className={cn(
+                                                            "h-11 w-full rounded-xl text-white font-bold shadow-sm",
+                                                            selectedOrder.payment_method === 'upi' ? "bg-blue-600 hover:bg-blue-700" : "bg-red-600 hover:bg-red-700"
+                                                        )}
+                                                        onClick={() => handlePayment(selectedOrder.payment_method as 'cash'|'upi' || 'cash')}
+                                                        disabled={processingPayment}
+                                                    >
+                                                        Verify & Complete {selectedOrder.payment_method?.toUpperCase() || 'CASH'} Payment
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <Button
+                                                        className="h-11 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-sm"
+                                                        onClick={() => handlePayment('cash')}
+                                                        disabled={processingPayment}
+                                                    >
+                                                        <DollarSign className="mr-2 h-4 w-4" /> Collect Cash
+                                                    </Button>
+                                                    <Button
+                                                        className="h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm"
+                                                        onClick={() => handlePayment('upi')}
+                                                        disabled={processingPayment}
+                                                    >
+                                                        <Smartphone className="mr-2 h-4 w-4" /> Collect UPI
+                                                    </Button>
+                                                </div>
+                                            )
+                                        ) : (
+                                            <div className="w-full h-11 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl flex items-center justify-center font-bold text-sm gap-2">
+                                                <Clock className="h-5 w-5 text-amber-600" />
+                                                Order is still {selectedOrder.status}. Cannot collect payment yet.
+                                            </div>
+                                        )}
+                                    </>
                                 ) : (
                                     <div className="w-full h-11 bg-green-50 border border-green-200 text-green-700 rounded-xl flex items-center justify-center font-bold text-sm gap-2">
                                         <CheckCircle2 className="h-5 w-5 text-green-600" />
