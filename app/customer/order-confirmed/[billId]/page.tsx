@@ -26,7 +26,7 @@ export default function OrderConfirmedPage() {
             try {
                 const { data: order, error } = await supabase
                     .from('orders')
-                    .select('*, restaurant_tables(table_number), order_items(*), customers(name, phone)')
+                    .select('*, order_items(*), customers(name, phone)')
                     .eq('bill_id', billId)
                     .single()
 

@@ -16,6 +16,21 @@ import { useCartStore } from '@/store/cartStore'
 import { toast } from 'sonner'
 import { Minus, Plus, Flame, ChefHat } from 'lucide-react'
 
+const DEFAULT_IMAGES = [
+    'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&q=80',
+    'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&q=80',
+    'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=500&q=80',
+    'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=500&q=80',
+    'https://images.unsplash.com/photo-1432139555190-58524dae6a55?w=500&q=80',
+    'https://images.unsplash.com/photo-1473093295043-cdd812d0e601?w=500&q=80'
+];
+
+const getDefaultImage = (id: string) => {
+    if (!id) return DEFAULT_IMAGES[0];
+    const sum = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return DEFAULT_IMAGES[sum % DEFAULT_IMAGES.length];
+};
+
 interface MenuItemModalProps {
     item: MenuItem | null
     isOpen: boolean
@@ -55,17 +70,11 @@ export function MenuItemModal({ item, isOpen, onClose }: MenuItemModalProps) {
                 <div className="overflow-y-auto flex-1">
                     {/* Hero Image */}
                     <div className="relative h-64 w-full bg-gray-100 sm:h-72">
-                        {item.image_url ? (
-                            <img
-                                src={item.image_url}
-                                alt={item.name}
-                                className="w-full h-full object-cover"
-                            />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                                <ChefHat className="w-12 h-12 opacity-20" />
-                            </div>
-                        )}
+                        <img
+                            src={item.image_url || getDefaultImage(item.id)}
+                            alt={item.name}
+                            className="w-full h-full object-cover"
+                        />
 
                         {/* WebAR Button (Demo) */}
                         {item.ar_model_url && ( // Only show if ar_model_url exists

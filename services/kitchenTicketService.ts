@@ -89,8 +89,7 @@ export async function getOrderWithTickets(billId: string): Promise<any> {
                     *,
                     order_items (*)
                 ),
-                order_items (*),
-                restaurant_tables (table_number)
+                order_items (*)
             `)
             .eq('bill_id', billId)
             .single()

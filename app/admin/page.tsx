@@ -194,7 +194,7 @@ export default function AdminDashboard() {
     const refreshSelectedOrder = useCallback(async (orderId: string) => {
         const { data } = await supabase
             .from('orders')
-            .select('*, customers(name, phone, address), order_items(*), restaurant_tables(table_number)')
+            .select('*, customers(name, phone, address), order_items(*)')
             .eq('id', orderId)
             .single()
 

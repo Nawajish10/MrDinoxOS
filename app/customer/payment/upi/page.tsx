@@ -6,7 +6,8 @@ import { QRCodeSVG } from 'qrcode.react'
 import { useRestaurant } from '@/hooks/useRestaurant'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { Copy, ArrowRight } from 'lucide-react'
+import { Copy, ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 
 function UPIPaymentContent() {
     const router = useRouter()
@@ -17,15 +18,48 @@ function UPIPaymentContent() {
 
     const { restaurant } = useRestaurant()
     const [upiUrl, setUpiUrl] = useState('')
+    const [isVerifying, setIsVerifying] = useState(false)
+    const [isSuccess, setIsSuccess] = useState(false)
 
+    // 1. Generate UPI URI
     useEffect(() => {
         if (restaurant?.upi_id && amount > 0) {
-            // Construct UPI URL
-            // pa: payee address, pn: payee name, am: amount, tr: transaction ref (billId), tn: transaction note
             const url = `upi://pay?pa=${restaurant.upi_id}&pn=${encodeURIComponent(restaurant.name)}&am=${amount}&tr=${billId}&tn=${encodeURIComponent(`Payment for Bill ${billId}`)}&cu=INR`
             setUpiUrl(url)
         }
     }, [restaurant, amount, billId])
+
+    // 2. Real-time listener for Payment Status changes (Verified by Gateway)
+    useEffect(() => {
+        if (!billId) return
+
+        const channel = supabase
+            .channel(`payment-status-${billId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'orders',
+                    filter: `bill_id=eq.${billId}`,
+                },
+                (payload: any) => {
+                    if (payload.new && payload.new.payment_status === 'paid') {
+                        console.log('✅ [UI] Payment verified by backend!')
+                        setIsSuccess(true)
+                        toast.success('Payment Verified Successfully!')
+                        setTimeout(() => {
+                            router.replace(`/customer/track/${billId}`)
+                        }, 2000)
+                    }
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [billId, router])
 
     const copyUpiId = () => {
         if (restaurant?.upi_id) {
@@ -34,11 +68,44 @@ function UPIPaymentContent() {
         }
     }
 
-    const handlePaymentDone = () => {
-        router.replace(`/customer/track/${billId}`)
+    // 3. Simulated Gateway Webhook Trigger
+    const simulateGatewayVerification = async () => {
+        setIsVerifying(true)
+        try {
+            const res = await fetch('/api/payments/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    billId,
+                    transactionId: `TXN${Date.now()}`,
+                    status: 'SUCCESS'
+                })
+            })
+
+            if (!res.ok) throw new Error('Verification failed')
+            
+            // The real-time listener will pick up the DB change and transition the UI.
+            toast.loading('Waiting for gateway confirmation...')
+        } catch (err) {
+            console.error('Simulation error:', err)
+            toast.error('Simulation failed.')
+            setIsVerifying(false)
+        }
     }
 
     if (!billId || !amount) return <div>Invalid Payment Details</div>
+
+    if (isSuccess) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-green-50 text-center space-y-6">
+                <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center animate-bounce duration-1000">
+                    <CheckCircle2 className="w-12 h-12 text-green-600" />
+                </div>
+                <h1 className="text-3xl font-black text-green-900">Payment Successful</h1>
+                <p className="text-green-700 font-medium text-lg">Redirecting to your order...</p>
+            </div>
+        )
+    }
 
     return (
         <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-b from-primary/10 to-background text-center space-y-8">
@@ -79,11 +146,17 @@ function UPIPaymentContent() {
                     </Button>
                 )}
 
-                <Button className="w-full h-12 text-base font-bold bg-green-600 hover:bg-green-700" onClick={handlePaymentDone}>
-                    I have completed payment <ArrowRight className="ml-2 w-5 h-5" />
+                <Button 
+                    className="w-full h-12 text-base font-bold bg-green-600 hover:bg-green-700" 
+                    onClick={simulateGatewayVerification}
+                    disabled={isVerifying}
+                >
+                    <ShieldCheck className="mr-2 w-5 h-5" />
+                    {isVerifying ? 'Verifying...' : 'Simulate Backend Verification'}
                 </Button>
-                <Button variant="outline" className="w-full" onClick={() => router.replace(`/customer/track/${billId}`)}>
-                    Pay Cash at Counter
+                
+                <Button variant="outline" className="w-full text-slate-500" onClick={() => router.replace(`/customer/track/${billId}`)}>
+                    Pay Cash at Counter Instead
                 </Button>
             </div>
         </div>

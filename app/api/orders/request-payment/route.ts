@@ -16,7 +16,7 @@ export async function POST(request: Request) {
         // Find order
         const { data: order, error } = await supabaseAdmin
             .from('orders')
-            .select('*, customers(*), restaurant_tables(*), order_items(*)')
+            .select('*, customers(*), order_items(*)')
             .eq('id', orderId)
             .single()
 

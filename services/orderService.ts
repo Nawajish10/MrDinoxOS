@@ -4,7 +4,7 @@ export async function getActiveOrders() {
     try {
         const { data, error } = await supabase
             .from('orders')
-            .select('*, customers(*), order_items(*, menu_items(*)), restaurant_tables(*), kitchen_tickets(*)')
+            .select('*, customers(*), order_items(*, menu_items(*)), kitchen_tickets(*)')
             .eq('restaurant_id', RESTAURANT_ID)
             .in('status', ['pending', 'confirmed', 'preparing', 'partially_ready', 'ready'])
             .order('created_at', { ascending: false })
@@ -21,7 +21,7 @@ export async function getActiveOrderByTable(tableId: string): Promise<any | null
     try {
         const { data, error } = await supabase
             .from('orders')
-            .select('*, customers(*), order_items(*), restaurant_tables(*), kitchen_tickets(*)')
+            .select('*, customers(*), order_items(*), kitchen_tickets(*)')
             .eq('restaurant_id', RESTAURANT_ID)
             .eq('table_id', tableId)
             .neq('payment_status', 'paid')
@@ -42,7 +42,7 @@ export async function getActiveOrderBySession(sessionId: string): Promise<any | 
     try {
         const { data, error } = await supabase
             .from('orders')
-            .select('*, customers(*), order_items(*), restaurant_tables(*), kitchen_tickets(*)')
+            .select('*, customers(*), order_items(*), kitchen_tickets(*)')
             .eq('restaurant_id', RESTAURANT_ID)
             .eq('session_id', sessionId)
             .neq('payment_status', 'paid')
@@ -80,7 +80,7 @@ export async function updateOrderStatus(orderId: string, status: string) {
         if (status === 'served' || status === 'cancelled') {
             const { data: order } = await supabase
                 .from('orders')
-                .select('*, customers(*), restaurant_tables(table_number), order_items(*)')
+                .select('*, customers(*), order_items(*)')
                 .eq('id', orderId)
                 .single()
 

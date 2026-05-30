@@ -20,7 +20,7 @@ export async function GET(request: Request) {
             .from('kitchen_tickets')
             .select(`
                 *,
-                orders!inner (bill_id, table_id, restaurant_tables(table_number)),
+                orders!inner (bill_id, table_id),
                 order_items (*)
             `)
             .eq('orders.restaurant_id', restaurantId)

@@ -23,43 +23,39 @@ export function CustomerBottomNav() {
     ].filter(Boolean) as Array<{ label: string; icon: typeof Utensils; href: string; active: boolean }>
 
     return (
-        <AnimatePresence>
-            {!hasCart && (
-                <motion.nav
-                    initial={{ y: 24, opacity: 0, scale: 0.96 }}
-                    animate={{ y: 0, opacity: 1, scale: 1 }}
-                    exit={{ y: 24, opacity: 0, scale: 0.96 }}
-                    transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-                    className="mobile-bottom-dock md:hidden"
-                    aria-label="Customer navigation"
+        <nav className="md:hidden fixed bottom-0 w-full flex justify-around items-center h-16 px-6 pb-safe bg-obsidian-base/80 backdrop-blur-lg z-50 border-t border-border-gray shadow-[0_-4px_20px_rgba(0,0,0,0.2)]">
+            <button 
+                onClick={() => router.push('/customer/menu')}
+                className={cn(
+                    "flex flex-col items-center justify-center transition-colors p-2 btn-scale-down",
+                    pathname?.includes('/customer/menu') ? "text-primary-container font-bold" : "text-on-surface-variant hover:text-primary-container"
+                )}
+            >
+                <span className="material-symbols-outlined text-[20px]" style={pathname?.includes('/customer/menu') ? { fontVariationSettings: "'FILL' 1" } : {}}>home</span>
+                <span className="font-label-sm text-[10px] mt-1">Home</span>
+            </button>
+            <button 
+                onClick={() => router.push('/customer/orders')}
+                className={cn(
+                    "flex flex-col items-center justify-center transition-colors p-2 btn-scale-down",
+                    pathname?.includes('/customer/orders') ? "text-primary-container font-bold" : "text-on-surface-variant hover:text-primary-container"
+                )}
+            >
+                <span className="material-symbols-outlined text-[20px]" style={pathname?.includes('/customer/orders') ? { fontVariationSettings: "'FILL' 1" } : {}}>receipt_long</span>
+                <span className="font-label-sm text-[10px] mt-1">Orders</span>
+            </button>
+            {activeBillId && (
+                <button 
+                    onClick={() => router.push(`/customer/track/${activeBillId}`)}
+                    className={cn(
+                        "flex flex-col items-center justify-center transition-colors p-2 btn-scale-down",
+                        pathname?.includes('/customer/track') ? "text-primary-container font-bold" : "text-on-surface-variant hover:text-primary-container"
+                    )}
                 >
-                    <div
-                        className="touch-card grid rounded-[1.65rem] p-1.5 shadow-2xl shadow-slate-900/12"
-                        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
-                    >
-                        {items.map((item) => (
-                            <button
-                                key={item.href}
-                                onClick={() => router.push(item.href)}
-                                className={cn(
-                                    'tap-target relative flex items-center justify-center gap-2 rounded-[1.25rem] text-xs font-black transition-all',
-                                    item.active ? 'text-white' : 'text-slate-500 active:bg-slate-100'
-                                )}
-                            >
-                                {item.active && (
-                                    <motion.span
-                                        layoutId="customer-bottom-nav-active"
-                                        className="absolute inset-0 rounded-[1.25rem] bg-slate-950 shadow-lg shadow-slate-950/20"
-                                        transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                                    />
-                                )}
-                                <item.icon className="relative z-10 h-4 w-4" />
-                                <span className="relative z-10">{item.label}</span>
-                            </button>
-                        ))}
-                    </div>
-                </motion.nav>
+                    <span className="material-symbols-outlined text-[20px]" style={pathname?.includes('/customer/track') ? { fontVariationSettings: "'FILL' 1" } : {}}>receipt</span>
+                    <span className="font-label-sm text-[10px] mt-1">Bill</span>
+                </button>
             )}
-        </AnimatePresence>
+        </nav>
     )
 }

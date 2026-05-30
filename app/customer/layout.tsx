@@ -12,15 +12,19 @@ export default function CustomerLayout({
     children: React.ReactNode
 }) {
     return (
-        <div className="app-shell min-h-svh text-slate-950">
-            <Header />
+        <div className="dark bg-obsidian-base text-on-background font-body-md antialiased min-h-svh relative overflow-hidden">
+            {/* Ambient Red Glow */}
+            <div className="fixed top-0 left-0 w-full h-full pointer-events-none -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-electric-red/10 via-obsidian-base/5 to-transparent" />
+            <div className="relative z-10">
+                <Header />
             <main className="min-h-svh pb-40 md:pb-10">
                 {children}
             </main>
             <CartSidebar />
             <FloatingCartButton />
-            <CustomerBottomNav />
-            <Toaster position="top-center" richColors />
+                <CustomerBottomNav />
+                <Toaster position="top-center" richColors />
+            </div>
         </div>
     )
 }

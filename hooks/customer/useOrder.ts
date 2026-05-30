@@ -33,7 +33,6 @@ export function useOrder(billId: string) {
             *,
             order_items (*),
             kitchen_tickets (*),
-            restaurant_tables (table_number),
             customers (name, phone)
           `)
                 .eq('bill_id', billId)

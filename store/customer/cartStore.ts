@@ -32,6 +32,7 @@ interface CartState {
     removeCoupon: () => void
     clearCart: () => void
     isCouponUsed: (code: string) => boolean
+    markCouponAsUsed: (code: string) => void
 
     getSubtotal: () => number
     getTax: () => number
@@ -123,17 +124,19 @@ export const useCartStore = create<CartState>()(
 
             applyCoupon: (coupon) => {
                 const { usedCoupons } = get()
-                // Check if this coupon code was already used
                 if (usedCoupons.includes(coupon.code)) {
                     return // Silently reject - UI should check isCouponUsed first
                 }
-                // Mark coupon as used and apply it
-                set({
-                    coupon,
-                    usedCoupons: [...usedCoupons, coupon.code]
-                })
+                set({ coupon })
             },
             removeCoupon: () => set({ coupon: null }),
+            
+            markCouponAsUsed: (code) => {
+                const { usedCoupons } = get()
+                if (!usedCoupons.includes(code)) {
+                    set({ usedCoupons: [...usedCoupons, code] })
+                }
+            },
 
             // Keep usedCoupons persistent - don't clear on cart reset
             clearCart: () => set({ items: [], specialInstructions: '', coupon: null }),

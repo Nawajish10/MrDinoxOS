@@ -126,7 +126,6 @@ export default function OrdersPage() {
                 .select(`
           *,
           customers (id, name, phone, email, address),
-          restaurant_tables (table_number),
           order_items (*)
         `)
                 .eq('restaurant_id', RESTAURANT_ID)
@@ -177,7 +176,6 @@ export default function OrdersPage() {
                 .select(`
                     *,
                     customers (id, name, phone, email, address),
-                    restaurant_tables (table_number),
                     order_items (*)
                 `)
                 .eq('id', orderId)

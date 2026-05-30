@@ -475,7 +475,7 @@ export default function TrackOrderPage() {
                                 <Button 
                                     variant="outline" 
                                     className="h-28 flex flex-col gap-3 rounded-2xl border-2 border-slate-100 hover:border-blue-500 hover:bg-blue-50 transition-all group"
-                                    onClick={() => setPaymentStep('upi_qr')}
+                                    onClick={() => router.push(`/customer/payment/upi?billId=${billId}&amount=${order.total}`)}
                                 >
                                     <div className="p-2 bg-blue-100 rounded-full group-hover:bg-white transition-colors">
                                         <Smartphone className="w-6 h-6 text-blue-600" />
