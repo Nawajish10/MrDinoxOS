@@ -100,14 +100,14 @@ export function CartSidebar() {
                         animate={{ opacity: 0.6 }}
                         exit={{ opacity: 0 }}
                         onClick={closeCart}
-                        className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 transition-opacity"
+                        className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] transition-opacity"
                     />
                     <motion.div
                         initial={{ y: '100%' }}
                         animate={{ y: 0 }}
                         exit={{ y: '100%' }}
                         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                        className="fixed bottom-0 inset-x-0 h-[88svh] sm:h-auto sm:inset-y-0 sm:right-0 sm:left-auto sm:w-full sm:max-w-md bg-obsidian-base z-50 shadow-2xl rounded-t-[2rem] sm:rounded-l-[2rem] sm:rounded-tr-none flex flex-col overflow-hidden border-l border-border-gray"
+                        className="fixed bottom-0 inset-x-0 h-[88svh] sm:h-auto sm:inset-y-0 sm:right-0 sm:left-auto sm:w-full sm:max-w-md bg-obsidian-base z-[100] shadow-2xl rounded-t-[2rem] sm:rounded-l-[2rem] sm:rounded-tr-none flex flex-col overflow-hidden border-l border-border-gray"
                     >
                         <div className="flex items-center justify-between p-5 sm:p-6 border-b border-border-gray bg-surface-container-lowest">
                             <div className="flex items-center gap-3">
