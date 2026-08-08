@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
+import { getOrSetCached, getCacheKey, deleteByPattern, CACHE_TTL } from '@/lib/cache/cache'
 
 export async function GET(request: Request) {
     try {
@@ -10,16 +11,25 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'restaurantId is required' }, { status: 400 })
         }
 
-        const supabase = getSupabaseAdmin()
-        const { data, error } = await supabase
-            .from('restaurant_tables')
-            .select('*')
-            .eq('restaurant_id', restaurantId)
-            .order('table_number', { ascending: true })
+        const cacheKey = getCacheKey(restaurantId, 'tables', 'all')
 
-        if (error) throw error
+        const tables = await getOrSetCached(
+            cacheKey,
+            async () => {
+                const supabase = getSupabaseAdmin()
+                const { data, error } = await supabase
+                    .from('restaurant_tables')
+                    .select('id, restaurant_id, table_number, table_name, capacity, status, is_active')
+                    .eq('restaurant_id', restaurantId)
+                    .order('table_number', { ascending: true })
 
-        return NextResponse.json({ success: true, tables: data || [] })
+                if (error) throw error
+                return data || []
+            },
+            CACHE_TTL.STATIC_PROFILE // 15 minutes
+        )
+
+        return NextResponse.json({ success: true, tables })
     } catch (error: unknown) {
         console.error('API /api/tables GET error:', error)
         return NextResponse.json(
@@ -60,6 +70,9 @@ export async function POST(request: Request) {
 
         if (error) throw error
 
+        // Invalidate tables cache
+        await deleteByPattern(`v1:restaurant:${restaurantId}:tables*`)
+
         return NextResponse.json({ success: true, table: data }, { status: 201 })
     } catch (error: unknown) {
         console.error('API /api/tables POST error:', error)
@@ -96,6 +109,11 @@ export async function PUT(request: Request) {
 
         if (error) throw error
 
+        const restaurantId = data?.restaurant_id || process.env.NEXT_PUBLIC_RESTAURANT_ID
+        if (restaurantId) {
+            await deleteByPattern(`v1:restaurant:${restaurantId}:tables*`)
+        }
+
         return NextResponse.json({ success: true, table: data })
     } catch (error: unknown) {
         console.error('API /api/tables PUT error:', error)
@@ -112,16 +130,23 @@ export async function DELETE(request: Request) {
         const id = searchParams.get('id')
 
         if (!id) {
-            return NextResponse.json({ error: 'Table id is required' }, { status: 400 })
+            return NextResponse.json({ error: 'Table id is required for deletion' }, { status: 400 })
         }
 
         const supabase = getSupabaseAdmin()
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('restaurant_tables')
             .delete()
             .eq('id', id)
+            .select('restaurant_id')
+            .single()
 
         if (error) throw error
+
+        const restaurantId = data?.restaurant_id || process.env.NEXT_PUBLIC_RESTAURANT_ID
+        if (restaurantId) {
+            await deleteByPattern(`v1:restaurant:${restaurantId}:tables*`)
+        }
 
         return NextResponse.json({ success: true, message: 'Table deleted successfully' })
     } catch (error: unknown) {

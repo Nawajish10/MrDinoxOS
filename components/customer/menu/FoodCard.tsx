@@ -5,6 +5,7 @@ import { MenuItem } from '@/types'
 import { Heart, Plus, Minus, Star, Flame } from 'lucide-react'
 import { useCartStore } from '@/store/cartStore'
 import { cn } from '@/lib/utils'
+import Image from 'next/image'
 
 interface FoodCardProps {
     item: MenuItem
@@ -30,6 +31,7 @@ const getDefaultImage = (id: string) => {
 export function FoodCard({ item, onItemClick }: FoodCardProps) {
     const { items: cartItems, addItem, updateQuantity, removeItem } = useCartStore()
     const [isFavorited, setIsFavorited] = useState(false)
+    const [imageLoaded, setImageLoaded] = useState(false)
 
     // Match cart item by id
     const cartItem = cartItems.find((ci) => ci.id === item.id)
@@ -75,11 +77,21 @@ export function FoodCard({ item, onItemClick }: FoodCardProps) {
             className="group bg-white rounded-2xl border border-[#E5E7EB] hover:border-orange-200 overflow-hidden shadow-[0_2px_10px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_rgba(255,107,0,0.08)] transition-all duration-300 flex flex-col justify-between cursor-pointer"
         >
             {/* Top Image Container */}
-            <div className="relative aspect-[4/3] w-full overflow-hidden bg-gray-50">
-                <img
+            <div className="relative aspect-[4/3] w-full overflow-hidden bg-gray-100">
+                {!imageLoaded && (
+                    <div className="absolute inset-0 bg-gray-200 animate-pulse" />
+                )}
+                <Image
                     src={item.image_url || getDefaultImage(item.id)}
                     alt={item.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+                    width={400}
+                    height={300}
+                    loading="lazy"
+                    onLoad={() => setImageLoaded(true)}
+                    className={cn(
+                        "w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out",
+                        imageLoaded ? "opacity-100" : "opacity-0"
+                    )}
                 />
 
                 {/* Top Badges */}
@@ -102,95 +114,97 @@ export function FoodCard({ item, onItemClick }: FoodCardProps) {
                     )}
                 </div>
 
-                {/* Wishlist Heart */}
+                {/* Favorite Heart Button */}
                 <button
                     onClick={toggleFavorite}
-                    aria-label="Favorite item"
-                    className="absolute top-2.5 right-2.5 p-1.5 bg-white/90 backdrop-blur-sm rounded-full shadow-xs text-gray-400 hover:text-red-500 hover:bg-white transition-all active:scale-90 z-10"
+                    className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-white/90 backdrop-blur-xs flex items-center justify-center text-gray-500 hover:text-red-500 transition-colors shadow-xs z-10"
+                    aria-label="Save dish"
                 >
-                    <Heart
-                        className={cn(
-                            "w-4 h-4 transition-colors",
-                            isFavorited ? "fill-red-500 text-red-500" : "text-gray-500"
-                        )}
-                    />
+                    <Heart className={cn("w-3.5 h-3.5", isFavorited ? "fill-red-500 text-red-500" : "")} />
                 </button>
             </div>
 
-            {/* Content Area */}
-            <div className="p-3.5 sm:p-4 flex-1 flex flex-col justify-between">
+            {/* Bottom Content Container */}
+            <div className="p-3.5 flex-1 flex flex-col justify-between gap-2.5">
                 <div>
-                    {/* Indicator row: Veg/Non-Veg & Rating */}
-                    <div className="flex items-center justify-between mb-1.5">
-                        {/* Veg / Non-Veg Indicator Icon */}
-                        {item.is_veg ? (
-                            <div className="w-4 h-4 rounded-[3px] border-2 border-emerald-600 flex items-center justify-center p-[2px]">
-                                <div className="w-2 h-2 rounded-full bg-emerald-600" />
+                    {/* Veg Indicator & Rating Row */}
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                        <div className="flex items-center gap-1.5">
+                            {/* Veg / Non-veg indicator icon */}
+                            <div className={cn(
+                                "w-3.5 h-3.5 border flex items-center justify-center p-0.5 rounded-xs",
+                                item.is_veg ? "border-emerald-600" : "border-red-600"
+                            )}>
+                                <div className={cn(
+                                    "w-1.5 h-1.5 rounded-full",
+                                    item.is_veg ? "bg-emerald-600" : "bg-red-600"
+                                )} />
                             </div>
-                        ) : (
-                            <div className="w-4 h-4 rounded-[3px] border-2 border-red-600 flex items-center justify-center p-[2px]">
-                                <div className="w-0 h-0 border-l-[3.5px] border-l-transparent border-r-[3.5px] border-r-transparent border-b-[6px] border-b-red-600" />
-                            </div>
-                        )}
+                            <span className="text-[10px] font-bold text-gray-500">
+                                {item.is_veg ? 'Pure Veg' : 'Non-Veg'}
+                            </span>
+                        </div>
 
-                        {/* Rating Badge */}
-                        <div className="flex items-center gap-0.5 bg-emerald-50 border border-emerald-200/80 text-emerald-700 px-1.5 py-0.5 rounded text-[11px] font-bold">
+                        {/* Rating Pill */}
+                        <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold">
+                            <Star className="w-2.5 h-2.5 fill-emerald-600 text-emerald-600" />
                             <span>{ratingScore}</span>
-                            <Star className="w-3 h-3 fill-emerald-600 text-emerald-600 inline" />
                         </div>
                     </div>
 
-                    {/* Food Name */}
-                    <h4 className="font-bold text-sm sm:text-[15px] text-[#111827] group-hover:text-[#FF6B00] transition-colors line-clamp-1 leading-snug">
+                    {/* Dish Title */}
+                    <h3 className="font-bold text-sm text-[#111827] line-clamp-1 group-hover:text-[#FF6B00] transition-colors">
                         {item.name}
-                    </h4>
+                    </h3>
 
-                    {/* Description */}
-                    <p className="text-xs text-[#6B7280] line-clamp-2 mt-1 leading-relaxed min-h-[32px]">
-                        {item.description || 'Prepared with fresh ingredients and chef secret spices.'}
-                    </p>
+                    {/* Short Description */}
+                    {item.description && (
+                        <p className="text-xs text-[#6B7280] line-clamp-2 mt-0.5 leading-relaxed font-normal">
+                            {item.description}
+                        </p>
+                    )}
                 </div>
 
-                {/* Price & Add to Cart interaction */}
-                <div className="flex items-center justify-between mt-3.5 pt-2 border-t border-gray-100">
-                    <div className="flex flex-col">
+                {/* Price & Quantity Add/Stepper Row */}
+                <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2 mt-auto">
+                    {/* Price with Optional Discount */}
+                    <div className="flex items-baseline gap-1.5">
+                        <span className="text-base font-extrabold text-[#111827]">
+                            ₹{displayPrice}
+                        </span>
                         {originalPrice && (
-                            <span className="text-[11px] text-[#6B7280] line-through">
+                            <span className="text-xs text-gray-400 line-through font-medium">
                                 ₹{originalPrice}
                             </span>
                         )}
-                        <span className="text-base sm:text-lg font-black text-[#111827] tracking-tight">
-                            ₹{displayPrice}
-                        </span>
                     </div>
 
-                    {/* Action Button: Add or Quantity Stepper */}
+                    {/* Add / Stepper Button */}
                     {quantity === 0 ? (
                         <button
                             onClick={handleAdd}
-                            className="inline-flex items-center justify-center gap-1.5 bg-orange-50/90 hover:bg-[#FF6B00] text-[#FF6B00] hover:text-white border border-[#FF6B00]/40 hover:border-[#FF6B00] px-3.5 py-1.5 rounded-xl font-bold text-xs sm:text-sm shadow-2xs transition-all active:scale-95 cursor-pointer"
+                            className="h-8 px-4 bg-[#FF6B00] hover:bg-[#e66000] active:scale-95 text-white font-bold text-xs rounded-full shadow-[0_2px_8px_rgba(255,107,0,0.25)] transition-all flex items-center justify-center gap-1 cursor-pointer"
                         >
                             <span>Add</span>
                             <Plus className="w-3.5 h-3.5" />
                         </button>
                     ) : (
-                        <div className="inline-flex items-center bg-[#FF6B00] text-white rounded-xl shadow-sm overflow-hidden">
+                        <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="h-8 px-2 bg-[#FF6B00] text-white font-extrabold text-xs rounded-full flex items-center gap-2 shadow-[0_2px_8px_rgba(255,107,0,0.25)]"
+                        >
                             <button
                                 onClick={handleDecrement}
-                                className="px-2.5 py-1.5 hover:bg-[#e05e00] transition-colors active:scale-95 cursor-pointer flex items-center justify-center"
-                                aria-label="Decrease quantity"
+                                className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-black/10 active:scale-90 transition-all cursor-pointer"
                             >
-                                <Minus className="w-3.5 h-3.5" />
+                                <Minus className="w-3 h-3" />
                             </button>
-                            <span className="font-bold text-xs sm:text-sm px-2 select-none min-w-[20px] text-center">
-                                {quantity}
-                            </span>
+                            <span className="min-w-[14px] text-center">{quantity}</span>
                             <button
                                 onClick={handleIncrement}
-                                className="px-2.5 py-1.5 hover:bg-[#e05e00] transition-colors active:scale-95 cursor-pointer flex items-center justify-center"
-                                aria-label="Increase quantity"
+                                className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-black/10 active:scale-90 transition-all cursor-pointer"
                             >
-                                <Plus className="w-3.5 h-3.5" />
+                                <Plus className="w-3 h-3" />
                             </button>
                         </div>
                     )}

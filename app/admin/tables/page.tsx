@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { PageHeader } from '@/components/admin/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -14,11 +14,12 @@ import { supabase, RESTAURANT_ID } from '@/lib/supabase'
 import { RestaurantTable } from '@/types'
 import { toast } from 'sonner'
 import { generateTableMenuQR } from '@/lib/qr-generator'
-import { cn } from '@/lib/utils'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { TablesGridSkeleton } from '@/components/ui/skeleton-loaders'
+import Image from 'next/image'
 
 export default function TablesPage() {
-    const [tables, setTables] = useState<RestaurantTable[]>([])
-    const [loading, setLoading] = useState(true)
+    const queryClient = useQueryClient()
     const [dialogOpen, setDialogOpen] = useState(false)
     const [editingTable, setEditingTable] = useState<RestaurantTable | null>(null)
     const [tableQRCodes, setTableQRCodes] = useState<Record<string, string>>({})
@@ -28,65 +29,61 @@ export default function TablesPage() {
         capacity: '',
         status: 'available' as 'available' | 'occupied' | 'reserved',
     })
-
     const [saving, setSaving] = useState(false)
 
-    useEffect(() => {
-        fetchTables()
-
-        const ch = supabase.channel('tables-rt')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurant_tables' }, () => fetchTables())
-            .subscribe()
-
-        return () => { supabase.removeChannel(ch) }
-    }, [])
-
-    useEffect(() => {
-        if (tables.length > 0) {
-            generateAllQRCodes()
-        }
-    }, [tables])
-
-    async function generateAllQRCodes() {
-        const codes: Record<string, string> = {}
-        for (const table of tables) {
-            try {
-                // Generate QR code for customer menu: /customer/menu?type=dine_in&restaurant=${restaurantId}&table=${tableId}
-                const qrDataUrl = await generateTableMenuQR(RESTAURANT_ID, table.id)
-                codes[table.id] = qrDataUrl
-            } catch (err) {
-                console.error(err)
-                codes[table.id] = ''
-            }
-        }
-        setTableQRCodes(codes)
-    }
-
-    async function fetchTables() {
-        try {
-            setLoading(true)
+    const { data: tables = [], isLoading } = useQuery<RestaurantTable[]>({
+        queryKey: ['restaurant-tables', RESTAURANT_ID],
+        queryFn: async () => {
             const res = await fetch(`/api/tables?restaurantId=${RESTAURANT_ID}`)
             if (res.ok) {
                 const data = await res.json()
-                setTables(data.tables || [])
-            } else {
-                // Fallback to Supabase client directly
-                const { data, error } = await supabase
-                    .from('restaurant_tables')
-                    .select('*')
-                    .eq('restaurant_id', RESTAURANT_ID)
-                    .order('table_number')
-
-                if (error) throw error
-                setTables(data || [])
+                return data.tables || []
             }
-        } catch (error) {
-            console.warn('Error fetching tables:', error)
-            toast.error('Failed to load tables from database')
-        } finally {
-            setLoading(false)
+            const { data, error } = await supabase
+                .from('restaurant_tables')
+                .select('id, restaurant_id, table_number, table_name, capacity, status, is_active')
+                .eq('restaurant_id', RESTAURANT_ID)
+                .order('table_number')
+            if (error) throw error
+            return data || []
+        },
+        staleTime: 1000 * 60 * 5, // 5 minutes fresh
+    })
+
+    useEffect(() => {
+        const ch = supabase.channel('tables-rt')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurant_tables' }, () => {
+                queryClient.invalidateQueries({ queryKey: ['restaurant-tables', RESTAURANT_ID] })
+            })
+            .subscribe()
+
+        return () => { supabase.removeChannel(ch) }
+    }, [queryClient])
+
+    // Memoized QR code generation
+    useEffect(() => {
+        if (!tables.length) return
+        let isMounted = true
+
+        const generateQRs = async () => {
+            const codes: Record<string, string> = {}
+            for (const table of tables) {
+                if (!tableQRCodes[table.id]) {
+                    try {
+                        codes[table.id] = await generateTableMenuQR(RESTAURANT_ID, table.id)
+                    } catch (err) {
+                        console.error('QR generation error:', err)
+                    }
+                }
+            }
+            if (isMounted && Object.keys(codes).length > 0) {
+                setTableQRCodes(prev => ({ ...prev, ...codes }))
+            }
         }
-    }
+
+        generateQRs()
+        return () => { isMounted = false }
+    }, [tables, tableQRCodes])
 
     async function handleSaveTable() {
         try {
@@ -98,42 +95,36 @@ export default function TablesPage() {
             setSaving(true)
             const tableData = {
                 restaurant_id: RESTAURANT_ID,
-                table_number: parseInt(tableForm.table_number),
+                table_number: Number(tableForm.table_number),
                 table_name: tableForm.table_name,
-                capacity: parseInt(tableForm.capacity),
+                capacity: Number(tableForm.capacity),
                 status: tableForm.status,
-                is_active: true,
-                ...(editingTable ? { id: editingTable.id } : {})
             }
 
-            const method = editingTable ? 'PUT' : 'POST'
-            const res = await fetch('/api/tables', {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(tableData)
-            })
-
-            const result = await res.json()
-
-            if (!res.ok || !result.success) {
-                throw new Error(result.error || 'Failed to save table')
-            }
-
-            toast.success(editingTable ? 'Table updated successfully' : 'Table created successfully!')
-            setDialogOpen(false)
-            setTableForm({ table_number: '', table_name: '', capacity: '', status: 'available' })
-            setEditingTable(null)
-
-            // Immediately update local state & re-fetch
             if (editingTable) {
-                setTables(prev => prev.map(t => t.id === editingTable.id ? result.table : t))
-            } else if (result.table) {
-                setTables(prev => [...prev.filter(t => t.id !== result.table.id), result.table].sort((a, b) => a.table_number - b.table_number))
+                const res = await fetch('/api/tables', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: editingTable.id, ...tableData })
+                })
+                if (!res.ok) throw new Error('Failed to update table')
+                toast.success('Table updated successfully')
+            } else {
+                const res = await fetch('/api/tables', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(tableData)
+                })
+                if (!res.ok) throw new Error('Failed to create table')
+                toast.success('Table created successfully')
             }
-            fetchTables()
-        } catch (error: unknown) {
+
+            queryClient.invalidateQueries({ queryKey: ['restaurant-tables', RESTAURANT_ID] })
+            setDialogOpen(false)
+            resetForm()
+        } catch (error) {
             console.error('Error saving table:', error)
-            toast.error(error instanceof Error ? error.message : 'Failed to save table')
+            toast.error('Failed to save table')
         } finally {
             setSaving(false)
         }
@@ -143,357 +134,194 @@ export default function TablesPage() {
         if (!confirm('Are you sure you want to delete this table?')) return
 
         try {
-            const res = await fetch(`/api/tables?id=${id}`, {
-                method: 'DELETE'
-            })
-
-            const result = await res.json()
-            if (!res.ok || !result.success) {
-                throw new Error(result.error || 'Failed to delete table')
-            }
-
+            const res = await fetch(`/api/tables?id=${id}`, { method: 'DELETE' })
+            if (!res.ok) throw new Error('Failed to delete table')
             toast.success('Table deleted successfully')
-            setTables(prev => prev.filter(t => t.id !== id))
-            fetchTables()
-        } catch (error: unknown) {
-            console.error('Error deleting table:', error)
-            toast.error(error instanceof Error ? error.message : 'Failed to delete table')
-        }
-    }
-
-    async function handleToggleStatus(id: string, currentStatus: string) {
-        const nextStatus = currentStatus === 'available' ? 'occupied' : 'available'
-        try {
-            setTables(prev => prev.map(t => t.id === id ? { ...t, status: nextStatus } : t))
-            const res = await fetch('/api/tables', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id, status: nextStatus })
-            })
-
-            if (!res.ok) {
-                fetchTables()
-            }
+            queryClient.invalidateQueries({ queryKey: ['restaurant-tables', RESTAURANT_ID] })
         } catch (error) {
-            console.error('Error updating status:', error)
-            fetchTables()
+            console.error('Error deleting table:', error)
+            toast.error('Failed to delete table')
         }
     }
 
-    const downloadQR = (table: RestaurantTable) => {
-        const url = tableQRCodes[table.id]
-        if (!url) return
-
-        const link = document.createElement('a')
-        link.href = url
-        link.download = `table-${table.table_number}-menu-qr.png`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        toast.success(`Menu QR Code for Table ${table.table_number} downloaded`)
+    function resetForm() {
+        setTableForm({
+            table_number: '',
+            table_name: '',
+            capacity: '',
+            status: 'available',
+        })
+        setEditingTable(null)
     }
 
-    async function handleTestWebhook(table: RestaurantTable) {
-        try {
-            const toastId = toast.loading(`Simulating scan for Table ${table.table_number}...`)
-
-            // Updated payload to match ThinkAIQ format
-            const payload = {
-                contact: {
-                    phone_number: "7282871506", // Dummy testing number with country code
-                    first_name: "Admin Tester",
-                    status: "existing"
-                },
-                message: {
-                    body: `I am at Table ${table.table_number}`,
-                    type: "text",
-                    is_new_message: true,
-                    direction: "inbound"
-                }
-            }
-
-            // Using no-cors mode since webhooks often don't set CORS headers for browsers
-            // Note: In no-cors, we can't read the response, but the request is sent.
-            // However, for testing, we'll try standard first. If it fails due to CORS, we might need a server proxy.
-            // But let's try standard fetch first as n8n webhooks usually allow it or user might have configured it.
-            // Update: User specifically asked to "run" it.
-
-            console.log('🔗 [WEBHOOK] Targeting Proxy: /api/webhook/payment')
-            console.log('📤 [WEBHOOK] Payload:', payload)
-
-            const response = await fetch('/api/webhook/payment', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload)
-            })
-
-            if (!response.ok) {
-                console.error('❌ [WEBHOOK] Server returned error:', response.status, response.statusText)
-                throw new Error(`n8n Error: ${response.status}. Make sure the workflow is ACTIVE.`)
-            }
-
-            toast.dismiss(toastId)
-            toast.success(`Webhook fired! Check n8n Executions.`)
-        } catch (error: unknown) {
-            console.error('❌ [WEBHOOK] Final Error:', error)
-            toast.error(`Webhook Failed: ${error instanceof Error ? error.message : String(error)}`)
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    const openEditDialog = (table: RestaurantTable) => {
+    function handleEditTable(table: RestaurantTable) {
         setEditingTable(table)
         setTableForm({
-            table_number: table.table_number.toString(),
+            table_number: String(table.table_number),
             table_name: table.table_name,
-            capacity: table.capacity.toString(),
+            capacity: String(table.capacity),
             status: table.status,
         })
         setDialogOpen(true)
     }
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'available': return 'bg-green-500/10 text-green-600 border-green-500/20 ring-green-500/20'
-            case 'occupied': return 'bg-red-500/10 text-red-600 border-red-500/20 ring-red-500/20'
-            case 'reserved': return 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20 ring-yellow-500/20'
-            default: return 'bg-gray-500/10 text-gray-600 border-gray-500/20'
-        }
-    }
-
-    if (loading) {
-        return (
-            <div className="flex min-h-[400px] items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                    <p className="text-muted-foreground animate-pulse font-medium">Loading Layout...</p>
-                </div>
-            </div>
-        )
-    }
-
-    const stats = {
-        total: tables.length,
-        available: tables.filter(t => t.status === 'available').length,
-        occupied: tables.filter(t => t.status === 'occupied').length,
-        reserved: tables.filter(t => t.status === 'reserved').length,
+    function downloadQR(table: RestaurantTable) {
+        const qrUrl = tableQRCodes[table.id]
+        if (!qrUrl) return
+        const a = document.createElement('a')
+        a.href = qrUrl
+        a.download = `table-${table.table_number}-qr.png`
+        a.click()
     }
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-6 pb-20">
             <PageHeader
-                title="Table Management"
-                description="Coordinate seating and download QR codes"
+                title="Tables & QR Management"
+                description="Manage your restaurant dining tables and download instant order QR codes."
             >
-                <Button onClick={() => {
-                    setEditingTable(null)
-                    setTableForm({ table_number: '', table_name: '', capacity: '', status: 'available' })
-                    setDialogOpen(true)
-                }} className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 transition-all min-h-[48px] px-6 active:scale-95 font-bold">
-                    <Plus className="mr-2 h-5 w-5" />
-                    Add New Table
+                <Button
+                    onClick={() => { resetForm(); setDialogOpen(true) }}
+                    className="bg-[#FF6B00] hover:bg-[#e66000] text-white gap-2 font-bold rounded-xl"
+                >
+                    <Plus className="w-4 h-4" />
+                    Add Table
                 </Button>
             </PageHeader>
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="glass-panel border-0 relative overflow-hidden group">
-                    <div className="absolute inset-0 bg-primary/5 group-hover:bg-primary/10 transition-colors" />
-                    <CardContent className="p-6 relative z-10">
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Total Tables</p>
-                        <p className="text-3xl font-black mt-2 text-foreground">{stats.total}</p>
-                    </CardContent>
-                </Card>
-                <Card className="glass-panel border-0 relative overflow-hidden group">
-                    <div className="absolute inset-0 bg-green-500/5 group-hover:bg-green-500/10 transition-colors" />
-                    <CardContent className="p-6 relative z-10">
-                        <p className="text-xs font-bold text-green-600/70 uppercase tracking-wider">Available</p>
-                        <p className="text-3xl font-black mt-2 text-green-600">{stats.available}</p>
-                    </CardContent>
-                </Card>
-                <Card className="glass-panel border-0 relative overflow-hidden group">
-                    <div className="absolute inset-0 bg-red-500/5 group-hover:bg-red-500/10 transition-colors" />
-                    <CardContent className="p-6 relative z-10">
-                        <p className="text-xs font-bold text-red-600/70 uppercase tracking-wider">Occupied</p>
-                        <p className="text-3xl font-black mt-2 text-red-600">{stats.occupied}</p>
-                    </CardContent>
-                </Card>
-                <Card className="glass-panel border-0 relative overflow-hidden group">
-                    <div className="absolute inset-0 bg-yellow-500/5 group-hover:bg-yellow-500/10 transition-colors" />
-                    <CardContent className="p-6 relative z-10">
-                        <p className="text-xs font-bold text-yellow-600/70 uppercase tracking-wider">Reserved</p>
-                        <p className="text-3xl font-black mt-2 text-yellow-600">{stats.reserved}</p>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {tables.length === 0 ? (
-                <div className="glass-panel p-12 text-center rounded-3xl border-dashed flex flex-col items-center">
-                    <Armchair className="h-16 w-16 text-muted-foreground/20 mb-4" />
-                    <p className="text-xl font-medium text-muted-foreground mb-4">No tables configured</p>
-                    <Button variant="outline" onClick={() => setDialogOpen(true)}>
-                        Configure your first table
-                    </Button>
+            {isLoading ? (
+                <TablesGridSkeleton />
+            ) : tables.length === 0 ? (
+                <div className="text-center py-16 bg-white rounded-2xl border border-gray-100 shadow-xs space-y-3">
+                    <Armchair className="w-12 h-12 text-gray-300 mx-auto" />
+                    <h3 className="font-bold text-base text-[#111827]">No tables created yet</h3>
+                    <p className="text-xs text-gray-500">Create tables to generate table QR codes for customer ordering.</p>
                 </div>
             ) : (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {tables.map((table) => (
-                        <div key={table.id} className="glass-card p-0 rounded-2xl border border-white/5 overflow-hidden group hover:border-primary/30 transition-all duration-300 relative">
-                            {/* Status Indicator Bar */}
-                            <div className={cn("h-1.5 w-full",
-                                table.status === 'available' ? "bg-green-500" :
-                                    table.status === 'occupied' ? "bg-red-500" : "bg-yellow-500"
-                            )} />
-
-                            <div className="p-6">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="h-12 w-12 rounded-xl bg-secondary/50 flex items-center justify-center font-black text-xl shadow-inner border border-white/10">
-                                            {table.table_number}
-                                        </div>
-                                        <div>
-                                            <h3 className="font-bold text-lg leading-tight">{table.table_name}</h3>
-                                            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                                                <Users className="h-3 w-3" />
-                                                <span>{table.capacity} Seats</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Button size="icon" variant="ghost" className="h-10 w-10 hover:bg-secondary rounded-full active:scale-95" onClick={() => openEditDialog(table)}>
-                                            <Edit className="h-4 w-4" />
-                                        </Button>
-                                        <Button size="icon" variant="ghost" className="h-10 w-10 hover:bg-destructive/10 text-destructive rounded-full active:scale-95" onClick={() => handleDeleteTable(table.id)}>
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
+                        <Card key={table.id} className="bg-white border-gray-100 shadow-xs hover:shadow-md transition-all rounded-2xl overflow-hidden">
+                            <CardHeader className="pb-3 border-b border-gray-50 flex flex-row items-center justify-between">
+                                <div>
+                                    <span className="text-xs font-bold text-gray-400">Table #{table.table_number}</span>
+                                    <CardTitle className="text-base font-bold text-[#111827] mt-0.5">{table.table_name}</CardTitle>
+                                </div>
+                                <Badge className={table.status === 'available' ? 'bg-emerald-50 text-emerald-700 border-0' : 'bg-orange-50 text-[#FF6B00] border-0'}>
+                                    {table.status}
+                                </Badge>
+                            </CardHeader>
+                            <CardContent className="p-5 space-y-4">
+                                <div className="flex justify-between items-center text-xs text-gray-500">
+                                    <div className="flex items-center gap-1.5">
+                                        <Users className="w-4 h-4 text-gray-400" />
+                                        <span>Capacity: <strong className="text-[#111827]">{table.capacity} Guests</strong></span>
                                     </div>
                                 </div>
 
-                                {/* QR Code Area */}
-                                <div className="bg-white p-3 rounded-lg flex items-center justify-center mb-4 relative group/qr shadow-sm">
+                                {/* QR Code Presentation */}
+                                <div className="bg-gray-50 p-4 rounded-xl flex flex-col items-center justify-center gap-2">
                                     {tableQRCodes[table.id] ? (
-                                        <img src={tableQRCodes[table.id]} alt="Menu QR Code" className="w-32 h-32 object-contain mix-blend-multiply" />
+                                        <Image
+                                            src={tableQRCodes[table.id]}
+                                            alt={`Table ${table.table_number} QR`}
+                                            width={140}
+                                            height={140}
+                                            className="w-32 h-32 rounded-lg bg-white p-2 shadow-xs"
+                                        />
                                     ) : (
-                                        <QrCode className="h-32 w-32 text-gray-200" />
+                                        <div className="w-32 h-32 bg-gray-200 animate-pulse rounded-lg" />
                                     )}
-                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/qr:opacity-100 transition-opacity flex flex-col gap-2 items-center justify-center rounded-lg backdrop-blur-[1px]">
-                                        <Button variant="secondary" size="default" onClick={() => downloadQR(table)} className="font-bold shadow-lg w-32 h-10 active:scale-95">
-                                            <Download className="h-4 w-4 mr-2" />
-                                            Download
-                                        </Button>
-                                    </div>
+                                    <span className="text-[10px] text-gray-400">Scan to view menu & order</span>
                                 </div>
 
-                                <Button
-                                    variant="outline"
-                                    className={cn(
-                                        "w-full font-bold border-2 transition-all min-h-[48px] active:scale-95",
-                                        table.status === 'available'
-                                            ? "border-green-500/30 text-green-600 hover:bg-green-500 hover:text-white hover:border-green-500"
-                                            : "border-red-500/30 text-red-600 hover:bg-red-500 hover:text-white hover:border-red-500"
-                                    )}
-                                    onClick={() => handleToggleStatus(table.id, table.status)}
-                                >
-                                    {table.status === 'available' ? 'Mark as Occupied' : 'Mark as Available'}
-                                </Button>
-                            </div>
-                        </div>
+                                {/* Actions */}
+                                <div className="flex items-center gap-2 pt-2">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => downloadQR(table)}
+                                        className="flex-1 text-xs gap-1.5 rounded-xl bg-white"
+                                    >
+                                        <Download className="w-3.5 h-3.5" />
+                                        QR
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => handleEditTable(table)}
+                                        className="text-xs rounded-xl"
+                                    >
+                                        <Edit className="w-3.5 h-3.5" />
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => handleDeleteTable(table.id)}
+                                        className="text-xs text-red-500 hover:text-red-600 rounded-xl"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
                     ))}
                 </div>
             )}
 
-            {/* Add/Edit Table Dialog */}
-            <Dialog open={dialogOpen} onOpenChange={(open) => {
-                setDialogOpen(open)
-                if (!open) {
-                    setEditingTable(null)
-                    setTableForm({ table_number: '', table_name: '', capacity: '', status: 'available' })
-                }
-            }}>
-                <DialogContent className="glass-panel border border-white/10 bg-background/95 backdrop-blur-xl sm:rounded-3xl">
+            {/* Create/Edit Dialog */}
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogContent className="sm:max-w-md bg-white rounded-2xl">
                     <DialogHeader>
-                        <DialogTitle className="text-xl font-bold">
-                            {editingTable ? 'Edit Table Details' : 'Add New Table'}
+                        <DialogTitle className="text-lg font-bold text-[#111827]">
+                            {editingTable ? 'Edit Table' : 'Add New Table'}
                         </DialogTitle>
-                        <DialogDescription>
-                            Configure table number, capacity and location
+                        <DialogDescription className="text-xs text-gray-500">
+                            Configure table number, display name, and seat capacity.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="number" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Table No.</Label>
-                                <Input
-                                    id="number"
-                                    type="number"
-                                    placeholder="e.g. 1"
-                                    value={tableForm.table_number}
-                                    onChange={(e) => setTableForm({ ...tableForm, table_number: e.target.value })}
-                                    className="bg-secondary/20 border-border/50 h-11"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="capacity" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Capacity</Label>
-                                <Input
-                                    id="capacity"
-                                    type="number"
-                                    placeholder="e.g. 4"
-                                    value={tableForm.capacity}
-                                    onChange={(e) => setTableForm({ ...tableForm, capacity: e.target.value })}
-                                    className="bg-secondary/20 border-border/50 h-11"
-                                />
-                            </div>
+
+                    <div className="space-y-4 py-2">
+                        <div className="space-y-1.5">
+                            <Label className="text-xs font-bold text-gray-700">Table Number *</Label>
+                            <Input
+                                type="number"
+                                placeholder="e.g. 1"
+                                value={tableForm.table_number}
+                                onChange={(e) => setTableForm({ ...tableForm, table_number: e.target.value })}
+                                className="bg-gray-50 border-gray-200 rounded-xl"
+                            />
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="name" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Location Name</Label>
-                            <div className="relative">
-                                <Armchair className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    id="name"
-                                    placeholder="e.g. Window Side, Booth 1"
-                                    value={tableForm.table_name}
-                                    onChange={(e) => setTableForm({ ...tableForm, table_name: e.target.value })}
-                                    className="pl-10 bg-secondary/20 border-border/50 h-11"
-                                />
-                            </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-xs font-bold text-gray-700">Table Name / Zone *</Label>
+                            <Input
+                                placeholder="e.g. Window Booth 1"
+                                value={tableForm.table_name}
+                                onChange={(e) => setTableForm({ ...tableForm, table_name: e.target.value })}
+                                className="bg-gray-50 border-gray-200 rounded-xl"
+                            />
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="status" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Current Status</Label>
-                            <Select
-                                value={tableForm.status}
-                                onValueChange={(v: any) => setTableForm({ ...tableForm, status: v })}
-                            >
-                                <SelectTrigger className="bg-secondary/20 border-border/50 h-11">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="available">
-                                        <div className="flex items-center gap-2">
-                                            <div className="h-2 w-2 rounded-full bg-green-500" /> Available
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="occupied">
-                                        <div className="flex items-center gap-2">
-                                            <div className="h-2 w-2 rounded-full bg-red-500" /> Occupied
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="reserved">
-                                        <div className="flex items-center gap-2">
-                                            <div className="h-2 w-2 rounded-full bg-yellow-500" /> Reserved
-                                        </div>
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
+                        <div className="space-y-1.5">
+                            <Label className="text-xs font-bold text-gray-700">Capacity (Seats) *</Label>
+                            <Input
+                                type="number"
+                                placeholder="e.g. 4"
+                                value={tableForm.capacity}
+                                onChange={(e) => setTableForm({ ...tableForm, capacity: e.target.value })}
+                                className="bg-gray-50 border-gray-200 rounded-xl"
+                            />
                         </div>
                     </div>
-                    <DialogFooter>
-                        <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
-                        <Button onClick={handleSaveTable} disabled={saving} className="bg-primary font-bold shadow-lg shadow-primary/20">
-                            {saving ? (editingTable ? 'Saving...' : 'Creating Table...') : (editingTable ? 'Save Changes' : 'Create Table')}
+
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => setDialogOpen(false)} className="rounded-xl">
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleSaveTable}
+                            disabled={saving}
+                            className="bg-[#FF6B00] hover:bg-[#e66000] text-white font-bold rounded-xl"
+                        >
+                            {saving ? 'Saving...' : editingTable ? 'Save Changes' : 'Create Table'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

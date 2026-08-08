@@ -16,6 +16,7 @@ import { SearchBar } from '@/components/customer/menu/SearchBar'
 import { PromoOfferStrip } from '@/components/customer/menu/PromoOfferStrip'
 import { MenuItem } from '@/types'
 import { supabase } from '@/lib/supabase'
+import { CategoryScrollerSkeleton, MenuCardSkeleton } from '@/components/ui/skeleton-loaders'
 
 function MenuContent() {
     const searchParams = useSearchParams()
@@ -262,14 +263,25 @@ function MenuContent() {
             <HeroBanner />
 
             {/* 2. Popular Categories Horizontal Scroller */}
-            <CategoryScroller
-                categories={categories || []}
-                activeCategory={activeCategory}
-                onSelectCategory={setActiveCategory}
-            />
+            {loadingMenu && (!categories || categories.length === 0) ? (
+                <CategoryScrollerSkeleton />
+            ) : (
+                <CategoryScroller
+                    categories={categories || []}
+                    activeCategory={activeCategory}
+                    onSelectCategory={setActiveCategory}
+                />
+            )}
 
             {/* 3. Recommended for you Section */}
-            {recommendedItems.length > 0 && activeCategory === 'all' && !searchQuery && (
+            {loadingMenu ? (
+                <section className="my-7">
+                    <div className="h-5 w-48 bg-gray-200 rounded-md mb-4 animate-pulse" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+                        {[1, 2, 3, 4].map(i => <MenuCardSkeleton key={i} />)}
+                    </div>
+                </section>
+            ) : recommendedItems.length > 0 && activeCategory === 'all' && !searchQuery && (
                 <section id="recommended-section" className="my-7">
                     <div className="flex items-center justify-between mb-4 px-0.5">
                         <div className="flex items-center gap-2">
