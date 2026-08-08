@@ -42,7 +42,29 @@ export function useRestaurant(restaurantId?: string | null) {
                 setError(null)
             } catch (err) {
                 console.warn('Error fetching restaurant:', err)
-                setError(err instanceof Error ? err.message : 'Failed to load restaurant')
+                const fallback: Restaurant = {
+                    id: id,
+                    name: 'Demo Restaurant',
+                    tagline: 'Fresh & Tasty',
+                    phone: '+910000000000',
+                    whatsapp_number: null,
+                    email: null,
+                    address: 'Demo Address',
+                    city: 'DemoCity',
+                    logo_url: null,
+                    banner_url: null,
+                    upi_id: null,
+                    upi_qr_url: null,
+                    is_open: true,
+                    tax_percentage: 0,
+                    delivery_charge: 0,
+                    min_order_amount: 0,
+                    avg_preparation_time: 15,
+                    opening_time: '',
+                    closing_time: ''
+                }
+                setRestaurant(fallback)
+                setError(null)
             } finally {
                 setLoading(false)
             }

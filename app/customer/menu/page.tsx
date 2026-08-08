@@ -205,15 +205,15 @@ function MenuContent() {
         }
     }
 
-    if (restaurantError || tableError) {
+    if (restaurantError && !restaurant) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen gap-6 bg-obsidian-base px-4">
                 <div className="text-center max-w-md">
                     <QrCode className="h-16 w-16 text-electric-red mx-auto mb-4" />
-                    <h2 className="text-2xl font-bold text-electric-red mb-2">Invalid QR Code</h2>
-                    <p className="text-on-surface-variant mb-4">{restaurantError || tableError}</p>
+                    <h2 className="text-2xl font-bold text-electric-red mb-2">Invalid Restaurant QR</h2>
+                    <p className="text-on-surface-variant mb-4">{restaurantError}</p>
                     <button onClick={() => router.push('/customer/menu')} className="px-4 py-2 border border-border-gray rounded text-on-surface hover:bg-surface-container transition-colors">
-                        View Menu Without Table
+                        View Menu
                     </button>
                 </div>
             </div>
