@@ -49,29 +49,43 @@ export default function MenuPage() {
         stock: '' as string | number,
         is_infinite_stock: false,
     })
+    const [savingCategory, setSavingCategory] = useState(false)
+    const [savingItem, setSavingItem] = useState(false)
+
     const fetchData = useCallback(async () => {
         try {
             setLoading(true)
 
-            // Fetch categories
-            const { data: cats } = await supabase
-                .from('menu_categories')
-                .select('*')
-                .eq('restaurant_id', RESTAURANT_ID)
-                .order('sort_order')
+            // Fetch categories via server API
+            const catRes = await fetch(`/api/menu/categories?restaurantId=${RESTAURANT_ID}`)
+            if (catRes.ok) {
+                const catData = await catRes.json()
+                setCategories(catData.categories || [])
+            } else {
+                const { data: cats } = await supabase
+                    .from('menu_categories')
+                    .select('*')
+                    .eq('restaurant_id', RESTAURANT_ID)
+                    .order('sort_order')
+                setCategories(cats || [])
+            }
 
-            // Fetch menu items
-            const { data: menuItems } = await supabase
-                .from('menu_items')
-                .select('*')
-                .eq('restaurant_id', RESTAURANT_ID)
-                .order('name')
-
-            setCategories(cats || [])
-            setItems((menuItems || []).filter(i => !i.name.startsWith('[DELETED]')))
+            // Fetch menu items via server API
+            const itemRes = await fetch(`/api/menu/items?restaurantId=${RESTAURANT_ID}`)
+            if (itemRes.ok) {
+                const itemData = await itemRes.json()
+                setItems((itemData.items || []).filter((i: any) => !i.name.startsWith('[DELETED]')))
+            } else {
+                const { data: menuItems } = await supabase
+                    .from('menu_items')
+                    .select('*')
+                    .eq('restaurant_id', RESTAURANT_ID)
+                    .order('name')
+                setItems((menuItems || []).filter(i => !i.name.startsWith('[DELETED]')))
+            }
         } catch (error) {
             console.warn('Error fetching menu data:', error)
-            toast.error('Failed to load menu data')
+            toast.error('Failed to load menu data from database')
         } finally {
             setLoading(false)
         }
@@ -118,39 +132,44 @@ export default function MenuPage() {
                 return
             }
 
-            if (editingCategory) {
-                const { error } = await supabase
-                    .from('menu_categories')
-                    .update({
-                        name: categoryForm.name,
-                        description: categoryForm.description,
-                    })
-                    .eq('id', editingCategory.id)
-
-                if (error) throw error
-                toast.success('Category updated successfully')
-            } else {
-                const { error } = await supabase
-                    .from('menu_categories')
-                    .insert({
-                        restaurant_id: RESTAURANT_ID,
-                        name: categoryForm.name,
-                        description: categoryForm.description,
-                        sort_order: categories.length,
-                        is_active: true,
-                    })
-
-                if (error) throw error
-                toast.success('Category added successfully')
+            setSavingCategory(true)
+            const payload = {
+                restaurant_id: RESTAURANT_ID,
+                name: categoryForm.name.trim(),
+                description: categoryForm.description || null,
+                sort_order: categories.length,
+                is_active: true,
+                ...(editingCategory ? { id: editingCategory.id } : {})
             }
 
+            const method = editingCategory ? 'PUT' : 'POST'
+            const res = await fetch('/api/menu/categories', {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+
+            const result = await res.json()
+            if (!res.ok || !result.success) {
+                throw new Error(result.error || 'Failed to save category')
+            }
+
+            toast.success(editingCategory ? 'Category updated successfully' : 'Category created successfully!')
             setCategoryDialogOpen(false)
             setCategoryForm({ name: '', description: '' })
             setEditingCategory(null)
+
+            if (editingCategory) {
+                setCategories(prev => prev.map(c => c.id === editingCategory.id ? result.category : c))
+            } else if (result.category) {
+                setCategories(prev => [...prev, result.category])
+            }
             fetchData()
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Error saving category:', error)
-            toast.error('Failed to save category')
+            toast.error(error instanceof Error ? error.message : 'Failed to save category')
+        } finally {
+            setSavingCategory(false)
         }
     }
 
@@ -167,46 +186,39 @@ export default function MenuPage() {
                 return
             }
 
+            setSavingItem(true)
             const itemData = {
                 restaurant_id: RESTAURANT_ID,
                 category_id: itemForm.category_id,
-                name: itemForm.name,
-                description: itemForm.description,
+                name: itemForm.name.trim(),
+                description: itemForm.description || null,
                 price: priceValue,
                 image_url: itemForm.image_url || null,
                 is_veg: itemForm.is_veg,
                 is_bestseller: itemForm.is_bestseller,
-                is_available: true, // Always true, managed by stock
+                is_available: true,
                 is_spicy: itemForm.is_spicy,
-                spicy_level: itemForm.spicy_level,
+                spicy_level: itemForm.spicy_level || 0,
                 is_new: false,
                 preparation_time: 15,
                 stock: itemForm.stock === '' || itemForm.stock === null ? null : parseInt(itemForm.stock.toString()),
-                is_infinite_stock: false, // Deprecated
+                is_infinite_stock: false,
+                ...(editingItem ? { id: editingItem.id } : {})
             }
 
+            const method = editingItem ? 'PUT' : 'POST'
+            const res = await fetch('/api/menu/items', {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(itemData)
+            })
 
-            let error = null
-
-            if (editingItem) {
-                const res = await supabase
-                    .from('menu_items')
-                    .update(itemData)
-                    .eq('id', editingItem.id)
-                error = res.error
-            } else {
-                const res = await supabase
-                    .from('menu_items')
-                    .insert(itemData)
-                error = res.error
+            const result = await res.json()
+            if (!res.ok || !result.success) {
+                throw new Error(result.error || 'Failed to save menu item')
             }
 
-            if (error) {
-                console.error('Supabase Error:', error)
-                throw error
-            }
-
-            toast.success(editingItem ? 'Menu item updated' : 'Menu item added')
+            toast.success(editingItem ? 'Menu item updated' : 'Menu item added to database!')
 
             setItemDialogOpen(false)
             setItemForm({
@@ -224,11 +236,18 @@ export default function MenuPage() {
                 is_infinite_stock: false,
             })
             setEditingItem(null)
+
+            if (editingItem) {
+                setItems(prev => prev.map(i => i.id === editingItem.id ? result.item : i))
+            } else if (result.item) {
+                setItems(prev => [...prev, result.item])
+            }
             fetchData()
-        } catch (error) {
-            console.error('Error saving item FULL:', JSON.stringify(error, null, 2))
-            console.error('Error object:', error)
-            toast.error('Failed to save menu item')
+        } catch (error: unknown) {
+            console.error('Error saving item:', error)
+            toast.error(error instanceof Error ? error.message : 'Failed to save menu item')
+        } finally {
+            setSavingItem(false)
         }
     }
 
@@ -236,17 +255,21 @@ export default function MenuPage() {
         if (!confirm('Are you sure you want to delete this category?')) return
 
         try {
-            const { error } = await supabase
-                .from('menu_categories')
-                .delete()
-                .eq('id', id)
+            const res = await fetch(`/api/menu/categories?id=${id}`, {
+                method: 'DELETE'
+            })
 
-            if (error) throw error
+            const result = await res.json()
+            if (!res.ok || !result.success) {
+                throw new Error(result.error || 'Failed to delete category')
+            }
+
             toast.success('Category deleted successfully')
+            setCategories(prev => prev.filter(c => c.id !== id))
             fetchData()
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Error deleting category:', error)
-            toast.error('Failed to delete category')
+            toast.error(error instanceof Error ? error.message : 'Failed to delete category')
         }
     }
 
@@ -254,35 +277,34 @@ export default function MenuPage() {
         if (!confirm('Are you sure you want to delete this item?')) return
 
         try {
-            const { error } = await supabase
-                .from('menu_items')
-                .delete()
-                .eq('id', id)
+            const res = await fetch(`/api/menu/items?id=${id}`, {
+                method: 'DELETE'
+            })
 
-            if (error) {
-                // Foreign Key Violation (Item used in orders)
-                if (error.code === '23503') {
-                    const { error: archiveError } = await supabase
-                        .from('menu_items')
-                        .update({
-                            is_available: false,
-                            name: items.find(i => i.id === id) ? `[DELETED] ${items.find(i => i.id === id)?.name}` : `[DELETED] Item ${id}`
-                        })
-                        .eq('id', id)
-
-                    if (archiveError) throw archiveError
-                    toast.success('Item deleted (archived for history)')
-                    fetchData()
-                    return
-                }
-                throw error
+            const result = await res.json()
+            if (!res.ok || !result.success) {
+                // If foreign key constraint, archive it
+                const archiveRes = await fetch('/api/menu/items', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id,
+                        is_available: false,
+                        name: items.find(i => i.id === id) ? `[DELETED] ${items.find(i => i.id === id)?.name}` : `[DELETED] Item ${id}`
+                    })
+                })
+                if (!archiveRes.ok) throw new Error('Failed to delete item')
+                toast.success('Item archived')
+                fetchData()
+                return
             }
+
             toast.success('Menu item deleted successfully')
+            setItems(prev => prev.filter(i => i.id !== id))
             fetchData()
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Error deleting item:', error)
-            const message = error instanceof Error ? error.message : 'Unknown error'
-            toast.error(`Failed to delete: ${message}`)
+            toast.error(error instanceof Error ? error.message : 'Failed to delete menu item')
         }
     }
 
@@ -556,11 +578,11 @@ export default function MenuPage() {
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="ghost" onClick={() => setCategoryDialogOpen(false)}>
+                        <Button variant="ghost" onClick={() => setCategoryDialogOpen(false)} disabled={savingCategory}>
                             Cancel
                         </Button>
-                        <Button onClick={handleSaveCategory} className="bg-primary font-bold shadow-lg shadow-primary/20">
-                            {editingCategory ? 'Save Changes' : 'Create Category'}
+                        <Button onClick={handleSaveCategory} disabled={savingCategory} className="bg-primary font-bold shadow-lg shadow-primary/20">
+                            {savingCategory ? (editingCategory ? 'Saving...' : 'Creating Category...') : (editingCategory ? 'Save Changes' : 'Create Category')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -724,11 +746,11 @@ export default function MenuPage() {
                     </div>
 
                     <div className="p-6 bg-muted/30 border-t border-border/50 flex justify-end gap-3">
-                        <Button variant="ghost" onClick={() => setItemDialogOpen(false)}>
+                        <Button variant="ghost" onClick={() => setItemDialogOpen(false)} disabled={savingItem}>
                             Cancel
                         </Button>
-                        <Button onClick={handleSaveItem} className="bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-primary/20 px-8">
-                            {editingItem ? 'Update Item' : 'Add to Menu'}
+                        <Button onClick={handleSaveItem} disabled={savingItem} className="bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-primary/20 px-8">
+                            {savingItem ? (editingItem ? 'Updating...' : 'Adding...') : (editingItem ? 'Update Item' : 'Add to Menu')}
                         </Button>
                     </div>
                 </DialogContent>

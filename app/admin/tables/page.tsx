@@ -29,6 +29,8 @@ export default function TablesPage() {
         status: 'available' as 'available' | 'occupied' | 'reserved',
     })
 
+    const [saving, setSaving] = useState(false)
+
     useEffect(() => {
         fetchTables()
 
@@ -54,8 +56,7 @@ export default function TablesPage() {
                 codes[table.id] = qrDataUrl
             } catch (err) {
                 console.error(err)
-                // Set a placeholder or error indicator
-                codes[table.id] = '' // Empty string indicates error
+                codes[table.id] = ''
             }
         }
         setTableQRCodes(codes)
@@ -64,17 +65,24 @@ export default function TablesPage() {
     async function fetchTables() {
         try {
             setLoading(true)
-            const { data, error } = await supabase
-                .from('restaurant_tables')
-                .select('*')
-                .eq('restaurant_id', RESTAURANT_ID)
-                .order('table_number')
+            const res = await fetch(`/api/tables?restaurantId=${RESTAURANT_ID}`)
+            if (res.ok) {
+                const data = await res.json()
+                setTables(data.tables || [])
+            } else {
+                // Fallback to Supabase client directly
+                const { data, error } = await supabase
+                    .from('restaurant_tables')
+                    .select('*')
+                    .eq('restaurant_id', RESTAURANT_ID)
+                    .order('table_number')
 
-            if (error) throw error
-            setTables(data || [])
+                if (error) throw error
+                setTables(data || [])
+            }
         } catch (error) {
             console.warn('Error fetching tables:', error)
-            toast.error('Failed to load tables')
+            toast.error('Failed to load tables from database')
         } finally {
             setLoading(false)
         }
@@ -87,6 +95,7 @@ export default function TablesPage() {
                 return
             }
 
+            setSaving(true)
             const tableData = {
                 restaurant_id: RESTAURANT_ID,
                 table_number: parseInt(tableForm.table_number),
@@ -94,32 +103,39 @@ export default function TablesPage() {
                 capacity: parseInt(tableForm.capacity),
                 status: tableForm.status,
                 is_active: true,
+                ...(editingTable ? { id: editingTable.id } : {})
             }
 
-            if (editingTable) {
-                const { error } = await supabase
-                    .from('restaurant_tables')
-                    .update(tableData)
-                    .eq('id', editingTable.id)
+            const method = editingTable ? 'PUT' : 'POST'
+            const res = await fetch('/api/tables', {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(tableData)
+            })
 
-                if (error) throw error
-                toast.success('Table updated successfully')
-            } else {
-                const { error } = await supabase
-                    .from('restaurant_tables')
-                    .insert(tableData)
+            const result = await res.json()
 
-                if (error) throw error
-                toast.success('Table added successfully')
+            if (!res.ok || !result.success) {
+                throw new Error(result.error || 'Failed to save table')
             }
 
+            toast.success(editingTable ? 'Table updated successfully' : 'Table created successfully!')
             setDialogOpen(false)
             setTableForm({ table_number: '', table_name: '', capacity: '', status: 'available' })
             setEditingTable(null)
+
+            // Immediately update local state & re-fetch
+            if (editingTable) {
+                setTables(prev => prev.map(t => t.id === editingTable.id ? result.table : t))
+            } else if (result.table) {
+                setTables(prev => [...prev.filter(t => t.id !== result.table.id), result.table].sort((a, b) => a.table_number - b.table_number))
+            }
             fetchTables()
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Error saving table:', error)
-            toast.error('Failed to save table')
+            toast.error(error instanceof Error ? error.message : 'Failed to save table')
+        } finally {
+            setSaving(false)
         }
     }
 
@@ -127,32 +143,40 @@ export default function TablesPage() {
         if (!confirm('Are you sure you want to delete this table?')) return
 
         try {
-            const { error } = await supabase
-                .from('restaurant_tables')
-                .delete()
-                .eq('id', id)
+            const res = await fetch(`/api/tables?id=${id}`, {
+                method: 'DELETE'
+            })
 
-            if (error) throw error
+            const result = await res.json()
+            if (!res.ok || !result.success) {
+                throw new Error(result.error || 'Failed to delete table')
+            }
+
             toast.success('Table deleted successfully')
+            setTables(prev => prev.filter(t => t.id !== id))
             fetchTables()
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Error deleting table:', error)
-            toast.error('Failed to delete table')
+            toast.error(error instanceof Error ? error.message : 'Failed to delete table')
         }
     }
 
     async function handleToggleStatus(id: string, currentStatus: string) {
         const nextStatus = currentStatus === 'available' ? 'occupied' : 'available'
         try {
-            const { error } = await supabase
-                .from('restaurant_tables')
-                .update({ status: nextStatus })
-                .eq('id', id)
+            setTables(prev => prev.map(t => t.id === id ? { ...t, status: nextStatus } : t))
+            const res = await fetch('/api/tables', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, status: nextStatus })
+            })
 
-            if (error) throw error
-            fetchTables()
+            if (!res.ok) {
+                fetchTables()
+            }
         } catch (error) {
             console.error('Error updating status:', error)
+            fetchTables()
         }
     }
 
@@ -467,9 +491,9 @@ export default function TablesPage() {
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="ghost" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                        <Button onClick={handleSaveTable} className="bg-primary font-bold shadow-lg shadow-primary/20">
-                            {editingTable ? 'Save Changes' : 'Create Table'}
+                        <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
+                        <Button onClick={handleSaveTable} disabled={saving} className="bg-primary font-bold shadow-lg shadow-primary/20">
+                            {saving ? (editingTable ? 'Saving...' : 'Creating Table...') : (editingTable ? 'Save Changes' : 'Create Table')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -34,14 +34,14 @@ export default function CouponsPage() {
         valid_until: '',
     })
 
+    const [saving, setSaving] = useState(false)
+
     useEffect(() => {
         fetchCoupons()
 
-        // Realtime subscription
         const channel = supabase
             .channel('coupons-realtime')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'coupons' }, () => {
-                console.log('🔴 Coupons updated - refreshing...')
                 fetchCoupons()
             })
             .subscribe()
@@ -52,18 +52,23 @@ export default function CouponsPage() {
     async function fetchCoupons() {
         try {
             setLoading(true)
-            const { data, error } = await supabase
-                .from('coupons')
-                .select('*')
-                .eq('restaurant_id', RESTAURANT_ID)
-                .order('created_at', { ascending: false })
+            const res = await fetch(`/api/coupons?restaurantId=${RESTAURANT_ID}`)
+            if (res.ok) {
+                const data = await res.json()
+                setCoupons(data.coupons || [])
+            } else {
+                const { data, error } = await supabase
+                    .from('coupons')
+                    .select('*')
+                    .eq('restaurant_id', RESTAURANT_ID)
+                    .order('created_at', { ascending: false })
 
-            if (error) throw error
-            setCoupons(data || [])
+                if (error) throw error
+                setCoupons(data || [])
+            }
         } catch (error: unknown) {
-            console.error('Error fetching coupons FULL:', JSON.stringify(error, null, 2))
-            console.error('Error object:', error)
-            toast.error('Failed to load coupons')
+            console.error('Error fetching coupons:', error)
+            toast.error('Failed to load coupons from database')
         } finally {
             setLoading(false)
         }
@@ -76,10 +81,11 @@ export default function CouponsPage() {
                 return
             }
 
+            setSaving(true)
             const couponData = {
                 restaurant_id: RESTAURANT_ID,
                 code: couponForm.code.toUpperCase(),
-                description: couponForm.description,
+                description: couponForm.description || null,
                 discount_type: couponForm.discount_type,
                 discount_value: parseFloat(couponForm.discount_value),
                 min_order_amount: parseFloat(couponForm.min_order_amount) || 0,
@@ -89,31 +95,36 @@ export default function CouponsPage() {
                 valid_until: new Date(couponForm.valid_until).toISOString(),
                 is_active: true,
                 used_count: 0,
+                ...(editingCoupon ? { id: editingCoupon.id } : {})
             }
 
-            if (editingCoupon) {
-                const { error } = await supabase
-                    .from('coupons')
-                    .update(couponData)
-                    .eq('id', editingCoupon.id)
+            const method = editingCoupon ? 'PUT' : 'POST'
+            const res = await fetch('/api/coupons', {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(couponData)
+            })
 
-                if (error) throw error
-                toast.success('Coupon updated successfully')
-            } else {
-                const { error } = await supabase
-                    .from('coupons')
-                    .insert(couponData)
-
-                if (error) throw error
-                toast.success('Coupon created successfully')
+            const result = await res.json()
+            if (!res.ok || !result.success) {
+                throw new Error(result.error || 'Failed to save coupon')
             }
 
+            toast.success(editingCoupon ? 'Coupon updated successfully' : 'Coupon created successfully!')
             setDialogOpen(false)
             resetForm()
+
+            if (editingCoupon) {
+                setCoupons(prev => prev.map(c => c.id === editingCoupon.id ? result.coupon : c))
+            } else if (result.coupon) {
+                setCoupons(prev => [result.coupon, ...prev])
+            }
             fetchCoupons()
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Error saving coupon:', error)
-            toast.error('Failed to save coupon')
+            toast.error(error instanceof Error ? error.message : 'Failed to save coupon')
+        } finally {
+            setSaving(false)
         }
     }
 
@@ -121,33 +132,43 @@ export default function CouponsPage() {
         if (!confirm('Are you sure you want to delete this coupon?')) return
 
         try {
-            const { error } = await supabase
-                .from('coupons')
-                .delete()
-                .eq('id', id)
+            const res = await fetch(`/api/coupons?id=${id}`, {
+                method: 'DELETE'
+            })
 
-            if (error) throw error
+            const result = await res.json()
+            if (!res.ok || !result.success) {
+                throw new Error(result.error || 'Failed to delete coupon')
+            }
+
             toast.success('Coupon deleted successfully')
+            setCoupons(prev => prev.filter(c => c.id !== id))
             fetchCoupons()
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Error deleting coupon:', error)
-            toast.error('Failed to delete coupon')
+            toast.error(error instanceof Error ? error.message : 'Failed to delete coupon')
         }
     }
 
     async function handleToggleStatus(coupon: Coupon) {
         try {
-            const { error } = await supabase
-                .from('coupons')
-                .update({ is_active: !coupon.is_active })
-                .eq('id', coupon.id)
+            const nextStatus = !coupon.is_active
+            setCoupons(prev => prev.map(c => c.id === coupon.id ? { ...c, is_active: nextStatus } : c))
 
-            if (error) throw error
-            toast.success(`Coupon ${coupon.is_active ? 'deactivated' : 'activated'}`)
-            fetchCoupons()
+            const res = await fetch('/api/coupons', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: coupon.id, is_active: nextStatus })
+            })
+
+            if (!res.ok) {
+                fetchCoupons()
+            } else {
+                toast.success(`Coupon ${nextStatus ? 'activated' : 'deactivated'}`)
+            }
         } catch (error) {
             console.error('Error toggling status:', error)
-            toast.error('Failed to update status')
+            fetchCoupons()
         }
     }
 
@@ -469,11 +490,11 @@ export default function CouponsPage() {
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="ghost" onClick={() => setDialogOpen(false)}>
+                        <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>
                             Cancel
                         </Button>
-                        <Button onClick={handleSaveCoupon} className="bg-primary font-bold shadow-lg shadow-primary/20 px-8">
-                            {editingCoupon ? 'Save Changes' : 'Create Coupon'}
+                        <Button onClick={handleSaveCoupon} disabled={saving} className="bg-primary font-bold shadow-lg shadow-primary/20 px-8">
+                            {saving ? (editingCoupon ? 'Saving...' : 'Creating...') : (editingCoupon ? 'Save Changes' : 'Create Coupon')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

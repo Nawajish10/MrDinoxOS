@@ -44,36 +44,61 @@ export default function SettingsPage() {
     async function fetchRestaurantData() {
         try {
             setLoading(true)
-            const { data, error } = await supabase
-                .from('restaurants')
-                .select('*')
-                .eq('id', RESTAURANT_ID)
-                .single()
+            const res = await fetch(`/api/settings?restaurantId=${RESTAURANT_ID}`)
+            if (res.ok) {
+                const data = await res.json()
+                const r = data.restaurant
+                if (r) {
+                    setRestaurant(r)
+                    setForm({
+                        name: r.name || '',
+                        tagline: r.tagline || '',
+                        phone: r.phone || '',
+                        whatsapp_number: r.whatsapp_number || '',
+                        email: r.email || '',
+                        address: r.address || '',
+                        city: r.city || '',
+                        tax_percentage: r.tax_percentage?.toString() || '',
+                        delivery_charge: r.delivery_charge?.toString() || '',
+                        min_order_amount: r.min_order_amount?.toString() || '',
+                        avg_preparation_time: r.avg_preparation_time?.toString() || '',
+                        opening_time: r.opening_time || '',
+                        closing_time: r.closing_time || '',
+                        upi_id: r.upi_id || '',
+                    })
+                }
+            } else {
+                const { data, error } = await supabase
+                    .from('restaurants')
+                    .select('*')
+                    .eq('id', RESTAURANT_ID)
+                    .single()
 
-            if (error) throw error
+                if (error) throw error
 
-            if (data) {
-                setRestaurant(data)
-                setForm({
-                    name: data.name || '',
-                    tagline: data.tagline || '',
-                    phone: data.phone || '',
-                    whatsapp_number: data.whatsapp_number || '',
-                    email: data.email || '',
-                    address: data.address || '',
-                    city: data.city || '',
-                    tax_percentage: data.tax_percentage?.toString() || '',
-                    delivery_charge: data.delivery_charge?.toString() || '',
-                    min_order_amount: data.min_order_amount?.toString() || '',
-                    avg_preparation_time: data.avg_preparation_time?.toString() || '',
-                    opening_time: data.opening_time || '',
-                    closing_time: data.closing_time || '',
-                    upi_id: data.upi_id || '',
-                })
+                if (data) {
+                    setRestaurant(data)
+                    setForm({
+                        name: data.name || '',
+                        tagline: data.tagline || '',
+                        phone: data.phone || '',
+                        whatsapp_number: data.whatsapp_number || '',
+                        email: data.email || '',
+                        address: data.address || '',
+                        city: data.city || '',
+                        tax_percentage: data.tax_percentage?.toString() || '',
+                        delivery_charge: data.delivery_charge?.toString() || '',
+                        min_order_amount: data.min_order_amount?.toString() || '',
+                        avg_preparation_time: data.avg_preparation_time?.toString() || '',
+                        opening_time: data.opening_time || '',
+                        closing_time: data.closing_time || '',
+                        upi_id: data.upi_id || '',
+                    })
+                }
             }
         } catch (error) {
             console.warn('Error fetching restaurant data:', error)
-            toast.error('Failed to load settings')
+            toast.error('Failed to load settings from database')
         } finally {
             setLoading(false)
         }
@@ -84,6 +109,7 @@ export default function SettingsPage() {
             setSaving(true)
 
             const updateData = {
+                id: RESTAURANT_ID,
                 name: form.name,
                 tagline: form.tagline || null,
                 phone: form.phone,
@@ -100,19 +126,23 @@ export default function SettingsPage() {
                 upi_id: form.upi_id || null,
             }
 
-            const { error } = await supabase
-                .from('restaurants')
-                .update(updateData)
-                .eq('id', RESTAURANT_ID)
+            const res = await fetch('/api/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updateData)
+            })
 
-            if (error) throw error
+            const result = await res.json()
+            if (!res.ok || !result.success) {
+                throw new Error(result.error || 'Failed to save settings')
+            }
 
             localStorage.setItem('restaurant_dietary_type', dietaryType)
-            toast.success('Settings saved successfully')
+            toast.success('Settings saved successfully!')
             fetchRestaurantData()
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Error saving settings:', error)
-            toast.error('Failed to save settings')
+            toast.error(error instanceof Error ? error.message : 'Failed to save settings')
         } finally {
             setSaving(false)
         }

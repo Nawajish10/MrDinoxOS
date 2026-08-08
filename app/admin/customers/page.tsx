@@ -28,6 +28,8 @@ export default function CustomersPage() {
         address: '',
     })
 
+    const [saving, setSaving] = useState(false)
+
     const fetchCustomers = useCallback(async (isSilent = false) => {
         try {
             if (!isSilent) setLoading(true)
@@ -38,46 +40,46 @@ export default function CustomersPage() {
                 return
             }
 
-            const { data, error } = await supabase
-                .from('customers')
-                .select('*')
-                .eq('restaurant_id', RESTAURANT_ID)
-                .order('created_at', { ascending: false })
+            const res = await fetch(`/api/customers?restaurantId=${RESTAURANT_ID}`)
+            if (res.ok) {
+                const data = await res.json()
+                setCustomers(data.customers || [])
+            } else {
+                const { data, error } = await supabase
+                    .from('customers')
+                    .select('*')
+                    .eq('restaurant_id', RESTAURANT_ID)
+                    .order('created_at', { ascending: false })
 
-            if (error) throw error
+                if (error) throw error
 
-            // Calculate stats for each customer from orders
-            const customersWithStats = await Promise.all(
-                (data || []).map(async (customer) => {
-                    // Fetch ALL orders for this customer
-                    const { data: allOrders } = await supabase
-                        .from('orders')
-                        .select('total, created_at, status')
-                        .eq('customer_id', customer.id)
-                        .order('created_at', { ascending: false })
+                // Calculate stats for each customer from orders
+                const customersWithStats = await Promise.all(
+                    (data || []).map(async (customer) => {
+                        const { data: allOrders } = await supabase
+                            .from('orders')
+                            .select('total, created_at, status')
+                            .eq('customer_id', customer.id)
+                            .order('created_at', { ascending: false })
 
-                    // Total orders = all orders
-                    const total_orders = allOrders?.length || 0
+                        const total_orders = allOrders?.length || 0
+                        const total_spent = allOrders?.reduce((sum, o) => sum + (o.total || 0), 0) || 0
+                        const last_order_at = allOrders?.[0]?.created_at || null
 
-                    // Total spent = sum of ALL orders (or only completed if you want)
-                    const total_spent = allOrders?.reduce((sum, o) => sum + (o.total || 0), 0) || 0
+                        return {
+                            ...customer,
+                            total_orders,
+                            total_spent,
+                            last_order_at
+                        }
+                    })
+                )
 
-                    // Last order = most recent order date
-                    const last_order_at = allOrders?.[0]?.created_at || null
-
-                    return {
-                        ...customer,
-                        total_orders,
-                        total_spent,
-                        last_order_at
-                    }
-                })
-            )
-
-            setCustomers(customersWithStats)
+                setCustomers(customersWithStats)
+            }
         } catch (error: unknown) {
             console.error('Error fetching customers:', error)
-            toast.error('Failed to load customers: ' + (error instanceof Error ? error.message : String(error)))
+            toast.error('Failed to load customers from database')
         } finally {
             setLoading(false)
             setRefreshing(false)
@@ -113,7 +115,6 @@ export default function CustomersPage() {
                     table: 'orders',
                 },
                 () => {
-                    console.log('🔴 Orders updated - refreshing customer stats...')
                     fetchCustomers(true)
                 }
             )
@@ -141,27 +142,39 @@ export default function CustomersPage() {
                 return
             }
 
-            const { error } = await supabase
-                .from('customers')
-                .insert({
-                    restaurant_id: RESTAURANT_ID,
-                    name: customerForm.name,
-                    phone: customerForm.phone,
-                    email: customerForm.email || null,
-                    address: customerForm.address || null,
-                    total_orders: 0,
-                    total_spent: 0,
-                })
+            setSaving(true)
+            const customerPayload = {
+                restaurant_id: RESTAURANT_ID,
+                name: customerForm.name.trim(),
+                phone: customerForm.phone.trim(),
+                email: customerForm.email?.trim() || null,
+                address: customerForm.address?.trim() || null,
+            }
 
-            if (error) throw error
+            const res = await fetch('/api/customers', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(customerPayload)
+            })
 
-            toast.success('Customer added successfully')
+            const result = await res.json()
+            if (!res.ok || !result.success) {
+                throw new Error(result.error || 'Failed to add customer')
+            }
+
+            toast.success('Customer added successfully!')
             setDialogOpen(false)
             setCustomerForm({ name: '', phone: '', email: '', address: '' })
+
+            if (result.customer) {
+                setCustomers(prev => [{ ...result.customer, total_orders: 0, total_spent: 0, last_order_at: null }, ...prev])
+            }
             fetchCustomers()
         } catch (error: unknown) {
             console.error('Error adding customer:', error)
-            toast.error('Failed to add customer: ' + (error instanceof Error ? error.message : String(error)))
+            toast.error(error instanceof Error ? error.message : 'Failed to add customer')
+        } finally {
+            setSaving(false)
         }
     }
 
@@ -367,9 +380,9 @@ export default function CustomersPage() {
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="ghost" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                        <Button onClick={handleAddCustomer} className="bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-primary/20 w-full sm:w-auto">
-                            Create Profile
+                        <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
+                        <Button onClick={handleAddCustomer} disabled={saving} className="bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-primary/20 w-full sm:w-auto">
+                            {saving ? 'Creating Profile...' : 'Create Profile'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
