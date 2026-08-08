@@ -340,7 +340,7 @@ export default function OrdersPage() {
                                     </div>
                                     <div className="flex items-center gap-1.5 capitalize">
                                         {order.order_type === 'dine_in' ? <Utensils className="w-3.5 h-3.5 text-orange-500" /> : <Truck className="w-3.5 h-3.5 text-blue-500" />}
-                                        <span>{order.order_type.replace('_', ' ')} {order.table_number ? `• Table ${order.table_number}` : ''}</span>
+                                        <span>{order.order_type.replace('_', ' ')} {(order as any).table_number ? `• Table ${(order as any).table_number}` : ''}</span>
                                     </div>
                                 </div>
 
