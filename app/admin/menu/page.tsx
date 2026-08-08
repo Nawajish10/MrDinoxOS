@@ -286,7 +286,7 @@ export default function MenuPage() {
             is_available: item.is_available,
             is_spicy: item.is_spicy,
             spicy_level: item.spicy_level || 0,
-            stock: item.stock !== null ? item.stock.toString() : '',
+            stock: item.stock != null ? item.stock.toString() : '',
             is_infinite_stock: item.is_infinite_stock,
         })
         setItemDialogOpen(true)
