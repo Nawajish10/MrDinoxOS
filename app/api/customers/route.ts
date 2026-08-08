@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
+import { getOrSetCached, getCacheKey, deleteByPattern, CACHE_TTL } from '@/lib/cache/cache'
 
 export async function GET(request: Request) {
     try {
@@ -10,35 +11,58 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'restaurantId is required' }, { status: 400 })
         }
 
-        const supabase = getSupabaseAdmin()
-        const { data: customers, error } = await supabase
-            .from('customers')
-            .select('*')
-            .eq('restaurant_id', restaurantId)
-            .order('created_at', { ascending: false })
+        const cacheKey = getCacheKey(restaurantId, 'customers', 'all')
 
-        if (error) throw error
+        const customersWithStats = await getOrSetCached(
+            cacheKey,
+            async () => {
+                const supabase = getSupabaseAdmin()
 
-        // Calculate stats for each customer from orders
-        const customersWithStats = await Promise.all(
-            (customers || []).map(async (customer) => {
-                const { data: allOrders } = await supabase
-                    .from('orders')
-                    .select('total, created_at, status')
-                    .eq('customer_id', customer.id)
-                    .order('created_at', { ascending: false })
+                // 1. Fetch customers and orders in parallel (Eliminates N+1 queries)
+                const [customersRes, ordersRes] = await Promise.all([
+                    supabase
+                        .from('customers')
+                        .select('id, restaurant_id, name, phone, email, address, created_at')
+                        .eq('restaurant_id', restaurantId)
+                        .order('created_at', { ascending: false }),
 
-                const total_orders = allOrders?.length || 0
-                const total_spent = allOrders?.reduce((sum, o) => sum + (o.total || 0), 0) || 0
-                const last_order_at = allOrders?.[0]?.created_at || null
+                    supabase
+                        .from('orders')
+                        .select('customer_id, total, created_at, status')
+                        .eq('restaurant_id', restaurantId)
+                ])
 
-                return {
-                    ...customer,
-                    total_orders,
-                    total_spent,
-                    last_order_at
+                if (customersRes.error) throw customersRes.error
+
+                const customers = customersRes.data || []
+                const orders = ordersRes.data || []
+
+                // 2. Group order stats by customer_id in O(N) memory
+                const customerStatsMap = new Map<string, { total_orders: number; total_spent: number; last_order_at: string | null }>()
+
+                for (const order of orders) {
+                    if (!order.customer_id) continue
+                    const existing = customerStatsMap.get(order.customer_id) || { total_orders: 0, total_spent: 0, last_order_at: null }
+                    existing.total_orders += 1
+                    existing.total_spent += Number(order.total) || 0
+                    if (!existing.last_order_at || new Date(order.created_at) > new Date(existing.last_order_at)) {
+                        existing.last_order_at = order.created_at
+                    }
+                    customerStatsMap.set(order.customer_id, existing)
                 }
-            })
+
+                // 3. Attach pre-aggregated stats
+                return customers.map(c => {
+                    const stats = customerStatsMap.get(c.id) || { total_orders: 0, total_spent: 0, last_order_at: null }
+                    return {
+                        ...c,
+                        total_orders: stats.total_orders,
+                        total_spent: stats.total_spent,
+                        last_order_at: stats.last_order_at
+                    }
+                })
+            },
+            CACHE_TTL.SHORT_ANALYTICS // 30 seconds
         )
 
         return NextResponse.json({ success: true, customers: customersWithStats })
@@ -61,17 +85,15 @@ export async function POST(request: Request) {
         }
 
         if (!body.phone || !body.phone.trim()) {
-            return NextResponse.json({ error: 'Phone number is required' }, { status: 400 })
+            return NextResponse.json({ error: 'Customer phone is required' }, { status: 400 })
         }
 
         const customerPayload = {
             restaurant_id: restaurantId,
+            name: body.name ? body.name.trim() : null,
             phone: body.phone.trim(),
-            name: body.name?.trim() || null,
-            email: body.email?.trim() || null,
-            address: body.address || null,
-            total_orders: Number(body.total_orders) || 0,
-            total_spent: Number(body.total_spent) || 0,
+            email: body.email ? body.email.trim() : null,
+            address: body.address ? body.address.trim() : null,
         }
 
         const supabase = getSupabaseAdmin()
@@ -82,6 +104,9 @@ export async function POST(request: Request) {
             .single()
 
         if (error) throw error
+
+        // Invalidate customers cache
+        await deleteByPattern(`v1:restaurant:${restaurantId}:customers*`)
 
         return NextResponse.json({ success: true, customer: data }, { status: 201 })
     } catch (error: unknown) {
@@ -103,10 +128,10 @@ export async function PUT(request: Request) {
         }
 
         const updatePayload: Record<string, unknown> = {}
-        if (updates.name !== undefined) updatePayload.name = updates.name.trim()
+        if (updates.name !== undefined) updatePayload.name = updates.name ? updates.name.trim() : null
         if (updates.phone !== undefined) updatePayload.phone = updates.phone.trim()
         if (updates.email !== undefined) updatePayload.email = updates.email ? updates.email.trim() : null
-        if (updates.address !== undefined) updatePayload.address = updates.address
+        if (updates.address !== undefined) updatePayload.address = updates.address ? updates.address.trim() : null
 
         const supabase = getSupabaseAdmin()
         const { data, error } = await supabase
@@ -117,6 +142,11 @@ export async function PUT(request: Request) {
             .single()
 
         if (error) throw error
+
+        const restaurantId = data?.restaurant_id || process.env.NEXT_PUBLIC_RESTAURANT_ID
+        if (restaurantId) {
+            await deleteByPattern(`v1:restaurant:${restaurantId}:customers*`)
+        }
 
         return NextResponse.json({ success: true, customer: data })
     } catch (error: unknown) {
@@ -138,12 +168,19 @@ export async function DELETE(request: Request) {
         }
 
         const supabase = getSupabaseAdmin()
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('customers')
             .delete()
             .eq('id', id)
+            .select('restaurant_id')
+            .single()
 
         if (error) throw error
+
+        const restaurantId = data?.restaurant_id || process.env.NEXT_PUBLIC_RESTAURANT_ID
+        if (restaurantId) {
+            await deleteByPattern(`v1:restaurant:${restaurantId}:customers*`)
+        }
 
         return NextResponse.json({ success: true, message: 'Customer deleted successfully' })
     } catch (error: unknown) {

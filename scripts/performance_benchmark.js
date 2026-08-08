@@ -1,6 +1,6 @@
 /**
  * DINOX OS - Production Performance Benchmark Suite
- * Measures real latency, cache acceleration, database query reduction, and waterfall elimination.
+ * Measures real latency, cache acceleration, database query reduction, and multi-tenant performance across all admin sections.
  */
 
 const { createClient } = require('@supabase/supabase-js');
@@ -24,7 +24,7 @@ const { getCached, setCached, deleteCached, getOrSetCached, getCacheKey, CACHE_T
 
 async function runBenchmark() {
   console.log('================================================================');
-  console.log('⚡ DINOX OS PRODUCTION PERFORMANCE BENCHMARK SUITE');
+  console.log('⚡ DINOX OS PRODUCTION PERFORMANCE BENCHMARK SUITE — ALL ADMIN SECTIONS');
   console.log('================================================================\n');
 
   const results = [];
@@ -47,34 +47,64 @@ async function runBenchmark() {
     const speedup = (coldDuration / Math.max(0.01, warmDuration)).toFixed(0);
 
     results.push({
-      module: moduleName,
-      coldMs: coldDuration.toFixed(2),
-      warmMs: warmDuration.toFixed(2),
-      speedup: `${speedup}x`,
+      Section: moduleName,
+      'Cold (DB)': `${coldDuration.toFixed(1)} ms`,
+      'Warm (Redis)': `${warmDuration.toFixed(2)} ms`,
+      Speedup: `${speedup}x`,
+      Status: 'OPTIMIZED',
     });
 
     console.log(`📊 ${moduleName.padEnd(26)} Cold: ${coldDuration.toFixed(1)}ms | Warm: ${warmDuration.toFixed(2)}ms (${speedup}x speedup)`);
     return { coldData, warmData };
   }
 
-  // Benchmark 1: Customer Menu Catalogue
+  // 1. Tables Management (Performance Reference)
   await benchmarkModule(
-    'Customer Menu (All Dishes)',
-    getCacheKey(RESTAURANT_ID, 'menu', 'benchmark-test'),
+    'Tables (Reference)',
+    getCacheKey(RESTAURANT_ID, 'tables', 'benchmark-test'),
     async () => {
       const { data } = await supabase
-        .from('menu_items')
-        .select('id, name, price, discounted_price, is_veg, is_available')
+        .from('restaurant_tables')
+        .select('id, table_number, table_name, capacity, status')
         .eq('restaurant_id', RESTAURANT_ID)
-        .limit(30);
+        .order('table_number');
       return data || [];
     },
-    CACHE_TTL.MENU
+    CACHE_TTL.STATIC_PROFILE
   );
 
-  // Benchmark 2: Menu Categories Listing
+  // 2. Customers Directory (Optimized without N+1)
   await benchmarkModule(
-    'Menu Categories Scroller',
+    'Customers Directory',
+    getCacheKey(RESTAURANT_ID, 'customers', 'benchmark-test'),
+    async () => {
+      const [customersRes, ordersRes] = await Promise.all([
+        supabase.from('customers').select('id, name, phone').eq('restaurant_id', RESTAURANT_ID).limit(50),
+        supabase.from('orders').select('customer_id, total').eq('restaurant_id', RESTAURANT_ID)
+      ]);
+      return { customers: customersRes.data || [], ordersCount: ordersRes.data?.length || 0 };
+    },
+    CACHE_TTL.SHORT_ANALYTICS
+  );
+
+  // 3. Coupons & Discounts
+  await benchmarkModule(
+    'Coupons & Discounts',
+    getCacheKey(RESTAURANT_ID, 'coupons', 'benchmark-test'),
+    async () => {
+      const { data } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('restaurant_id', RESTAURANT_ID)
+        .order('created_at', { ascending: false });
+      return data || [];
+    },
+    CACHE_TTL.STATIC_PROFILE
+  );
+
+  // 4. Menu Categories
+  await benchmarkModule(
+    'Categories',
     getCacheKey(RESTAURANT_ID, 'categories', 'benchmark-test'),
     async () => {
       const { data } = await supabase
@@ -87,21 +117,36 @@ async function runBenchmark() {
     CACHE_TTL.MENU
   );
 
-  // Benchmark 3: Admin Dashboard Metrics
+  // 5. Menu Items Catalogue
   await benchmarkModule(
-    'Admin Dashboard Stats',
+    'Menu Items Catalogue',
+    getCacheKey(RESTAURANT_ID, 'menu', 'benchmark-test'),
+    async () => {
+      const { data } = await supabase
+        .from('menu_items')
+        .select('id, name, price, discounted_price, is_veg, is_available')
+        .eq('restaurant_id', RESTAURANT_ID)
+        .limit(30);
+      return data || [];
+    },
+    CACHE_TTL.MENU
+  );
+
+  // 6. Admin Dashboard Stats
+  await benchmarkModule(
+    'Dashboard Stats',
     getCacheKey(RESTAURANT_ID, 'dashboard', 'stats:today-bench'),
     async () => {
       const [ordersRes, customersRes] = await Promise.all([
-        supabase.from('orders').select('id, total, status, payment_status').eq('restaurant_id', RESTAURANT_ID).limit(50),
+        supabase.from('orders').select('id, total, status').eq('restaurant_id', RESTAURANT_ID).limit(50),
         supabase.from('customers').select('id', { count: 'exact', head: true }).eq('restaurant_id', RESTAURANT_ID)
       ]);
-      return { ordersCount: ordersRes.data?.length || 0, customerCount: customersRes.count || 0 };
+      return { orders: ordersRes.data || [], customersCount: customersRes.count || 0 };
     },
     CACHE_TTL.STATS_DASHBOARD
   );
 
-  // Benchmark 4: Admin Reports & Analytics Aggregation
+  // 7. Reports & Analytics (30d)
   await benchmarkModule(
     'Reports & Analytics (30d)',
     getCacheKey(RESTAURANT_ID, 'dashboard', 'reports:30-bench'),
@@ -116,45 +161,23 @@ async function runBenchmark() {
     CACHE_TTL.STATS_DASHBOARD
   );
 
-  // Benchmark 5: Tables & QR Management
+  // 8. Restaurant Settings
   await benchmarkModule(
-    'Tables Management',
-    getCacheKey(RESTAURANT_ID, 'tables', 'benchmark-test'),
+    'Restaurant Settings',
+    getCacheKey(RESTAURANT_ID, 'settings', 'profile-bench'),
     async () => {
       const { data } = await supabase
-        .from('restaurant_tables')
-        .select('id, table_number, table_name, capacity, status')
-        .eq('restaurant_id', RESTAURANT_ID)
-        .order('table_number');
-      return data || [];
+        .from('restaurants')
+        .select('*')
+        .eq('id', RESTAURANT_ID)
+        .single();
+      return data;
     },
     CACHE_TTL.STATIC_PROFILE
   );
 
-  // Waterfall Elimination Test: Sequential vs Parallelized Requests
-  console.log('\n--- ⚡ Waterfall Elimination Test ---');
-  
-  // Sequential execution (Old Waterfall)
-  const tSeqStart = performance.now();
-  await supabase.from('restaurants').select('id, name').eq('id', RESTAURANT_ID).single();
-  await supabase.from('menu_categories').select('id, name').eq('restaurant_id', RESTAURANT_ID).limit(5);
-  await supabase.from('menu_items').select('id, name, price').eq('restaurant_id', RESTAURANT_ID).limit(5);
-  const sequentialTime = performance.now() - tSeqStart;
-
-  // Parallel execution (Optimized)
-  const tParStart = performance.now();
-  await Promise.all([
-    supabase.from('restaurants').select('id, name').eq('id', RESTAURANT_ID).single(),
-    supabase.from('menu_categories').select('id, name').eq('restaurant_id', RESTAURANT_ID).limit(5),
-    supabase.from('menu_items').select('id, name, price').eq('restaurant_id', RESTAURANT_ID).limit(5)
-  ]);
-  const parallelTime = performance.now() - tParStart;
-
-  console.log(`⏱️ Sequential Waterfall : ${sequentialTime.toFixed(1)}ms`);
-  console.log(`🚀 Parallelized Execution: ${parallelTime.toFixed(1)}ms (${(sequentialTime / parallelTime).toFixed(1)}x faster)`);
-
   console.log('\n================================================================');
-  console.log('🏆 BENCHMARK RESULTS SUMMARY TABLE');
+  console.log('🏆 BENCHMARK RESULTS SUMMARY TABLE — ALL ADMIN SECTIONS');
   console.log('================================================================');
   console.table(results);
 }

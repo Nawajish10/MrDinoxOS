@@ -17,31 +17,79 @@ import {
     ChevronLeft,
     ChevronRight,
     Store,
-    Smartphone,
     Monitor
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useQueryClient } from '@tanstack/react-query'
+import { RESTAURANT_ID } from '@/lib/supabase'
 
 const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', href: '/admin' },
-    { icon: ShoppingBag, label: 'Orders', href: '/admin/orders' },
-    { icon: UtensilsCrossed, label: 'Menu', href: '/admin/menu' },
-    { icon: Armchair, label: 'Tables', href: '/admin/tables' },
-    { icon: Users, label: 'Customers', href: '/admin/customers' },
-    { icon: TicketPercent, label: 'Coupons', href: '/admin/coupons' },
-    { icon: FileBarChart, label: 'Reports', href: '/admin/reports' },
+    { icon: LayoutDashboard, label: 'Dashboard', href: '/admin', queryKey: ['admin-stats', RESTAURANT_ID] },
+    { icon: ShoppingBag, label: 'Orders', href: '/admin/orders', queryKey: ['admin-orders', RESTAURANT_ID] },
+    { icon: UtensilsCrossed, label: 'Menu', href: '/admin/menu', queryKey: ['restaurant-categories', RESTAURANT_ID] },
+    { icon: Armchair, label: 'Tables', href: '/admin/tables', queryKey: ['restaurant-tables', RESTAURANT_ID] },
+    { icon: Users, label: 'Customers', href: '/admin/customers', queryKey: ['restaurant-customers', RESTAURANT_ID] },
+    { icon: TicketPercent, label: 'Coupons', href: '/admin/coupons', queryKey: ['restaurant-coupons', RESTAURANT_ID] },
+    { icon: FileBarChart, label: 'Reports', href: '/admin/reports', queryKey: ['admin-reports', RESTAURANT_ID, '7'] },
     { icon: Monitor, label: 'App Previews', href: '/admin/preview' },
-    { icon: Settings, label: 'Settings', href: '/admin/settings' },
+    { icon: Settings, label: 'Settings', href: '/admin/settings', queryKey: ['restaurant-settings', RESTAURANT_ID] },
 ]
 
 export function AdminSidebar() {
     const pathname = usePathname()
+    const queryClient = useQueryClient()
     const { sidebarOpen, toggleSidebar } = useAdminStore()
 
     const [mounted, setMounted] = useState(false)
     useEffect(() => {
         setMounted(true)
     }, [])
+
+    function handlePrefetch(href: string) {
+        if (!RESTAURANT_ID) return
+        if (href === '/admin/tables') {
+            queryClient.prefetchQuery({
+                queryKey: ['restaurant-tables', RESTAURANT_ID],
+                queryFn: () => fetch(`/api/tables?restaurantId=${RESTAURANT_ID}`).then(r => r.json()).then(d => d.tables || []),
+                staleTime: 1000 * 60 * 5,
+            })
+        } else if (href === '/admin/customers') {
+            queryClient.prefetchQuery({
+                queryKey: ['restaurant-customers', RESTAURANT_ID],
+                queryFn: () => fetch(`/api/customers?restaurantId=${RESTAURANT_ID}`).then(r => r.json()).then(d => d.customers || []),
+                staleTime: 1000 * 60 * 5,
+            })
+        } else if (href === '/admin/coupons') {
+            queryClient.prefetchQuery({
+                queryKey: ['restaurant-coupons', RESTAURANT_ID],
+                queryFn: () => fetch(`/api/coupons?restaurantId=${RESTAURANT_ID}`).then(r => r.json()).then(d => d.coupons || []),
+                staleTime: 1000 * 60 * 5,
+            })
+        } else if (href === '/admin/menu') {
+            queryClient.prefetchQuery({
+                queryKey: ['restaurant-categories', RESTAURANT_ID],
+                queryFn: () => fetch(`/api/menu/categories?restaurantId=${RESTAURANT_ID}`).then(r => r.json()).then(d => d.categories || []),
+                staleTime: 1000 * 60 * 5,
+            })
+            queryClient.prefetchQuery({
+                queryKey: ['restaurant-menu-items', RESTAURANT_ID],
+                queryFn: () => fetch(`/api/menu/items?restaurantId=${RESTAURANT_ID}`).then(r => r.json()).then(d => d.items || []),
+                staleTime: 1000 * 60 * 5,
+            })
+        } else if (href === '/admin/reports') {
+            queryClient.prefetchQuery({
+                queryKey: ['admin-reports', RESTAURANT_ID, '7'],
+                queryFn: () => fetch(`/api/admin/reports?restaurantId=${RESTAURANT_ID}&range=7`).then(r => r.json()).then(d => d.reports),
+                staleTime: 1000 * 60,
+            })
+        } else if (href === '/admin/settings') {
+            queryClient.prefetchQuery({
+                queryKey: ['restaurant-settings', RESTAURANT_ID],
+                queryFn: () => fetch(`/api/settings?restaurantId=${RESTAURANT_ID}`).then(r => r.json()).then(d => d.restaurant),
+                staleTime: 1000 * 60 * 10,
+            })
+        }
+    }
 
     if (!mounted) return null
 
@@ -93,6 +141,9 @@ export function AdminSidebar() {
                         <Link
                             key={item.href}
                             href={item.href}
+                            prefetch={true}
+                            onMouseEnter={() => handlePrefetch(item.href)}
+                            onFocus={() => handlePrefetch(item.href)}
                             className={cn(
                                 'flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-all duration-300 group relative overflow-hidden',
                                 isActive
@@ -119,7 +170,7 @@ export function AdminSidebar() {
                 })}
             </nav>
 
-            {/* Collapse Button (Desktop only when closed to re-open easily) */}
+            {/* Collapse Button */}
             {!sidebarOpen && (
                 <div className="p-3 border-t border-gray-800 mt-auto">
                     <Button

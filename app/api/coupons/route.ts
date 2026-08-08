@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
+import { getOrSetCached, getCacheKey, deleteByPattern, CACHE_TTL } from '@/lib/cache/cache'
 
 export async function GET(request: Request) {
     try {
@@ -10,16 +11,25 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'restaurantId is required' }, { status: 400 })
         }
 
-        const supabase = getSupabaseAdmin()
-        const { data, error } = await supabase
-            .from('coupons')
-            .select('*')
-            .eq('restaurant_id', restaurantId)
-            .order('created_at', { ascending: false })
+        const cacheKey = getCacheKey(restaurantId, 'coupons', 'all')
 
-        if (error) throw error
+        const coupons = await getOrSetCached(
+            cacheKey,
+            async () => {
+                const supabase = getSupabaseAdmin()
+                const { data, error } = await supabase
+                    .from('coupons')
+                    .select('*')
+                    .eq('restaurant_id', restaurantId)
+                    .order('created_at', { ascending: false })
 
-        return NextResponse.json({ success: true, coupons: data || [] })
+                if (error) throw error
+                return data || []
+            },
+            CACHE_TTL.STATIC_PROFILE // 15 minutes
+        )
+
+        return NextResponse.json({ success: true, coupons })
     } catch (error: unknown) {
         console.error('API /api/coupons GET error:', error)
         return NextResponse.json(
@@ -70,6 +80,9 @@ export async function POST(request: Request) {
 
         if (error) throw error
 
+        // Invalidate coupons cache
+        await deleteByPattern(`v1:restaurant:${restaurantId}:coupons*`)
+
         return NextResponse.json({ success: true, coupon: data }, { status: 201 })
     } catch (error: unknown) {
         console.error('API /api/coupons POST error:', error)
@@ -111,6 +124,11 @@ export async function PUT(request: Request) {
 
         if (error) throw error
 
+        const restaurantId = data?.restaurant_id || process.env.NEXT_PUBLIC_RESTAURANT_ID
+        if (restaurantId) {
+            await deleteByPattern(`v1:restaurant:${restaurantId}:coupons*`)
+        }
+
         return NextResponse.json({ success: true, coupon: data })
     } catch (error: unknown) {
         console.error('API /api/coupons PUT error:', error)
@@ -131,12 +149,19 @@ export async function DELETE(request: Request) {
         }
 
         const supabase = getSupabaseAdmin()
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('coupons')
             .delete()
             .eq('id', id)
+            .select('restaurant_id')
+            .single()
 
         if (error) throw error
+
+        const restaurantId = data?.restaurant_id || process.env.NEXT_PUBLIC_RESTAURANT_ID
+        if (restaurantId) {
+            await deleteByPattern(`v1:restaurant:${restaurantId}:coupons*`)
+        }
 
         return NextResponse.json({ success: true, message: 'Coupon deleted successfully' })
     } catch (error: unknown) {

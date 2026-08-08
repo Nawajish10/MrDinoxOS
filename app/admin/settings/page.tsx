@@ -12,11 +12,12 @@ import { supabase, RESTAURANT_ID } from '@/lib/supabase'
 import { Restaurant } from '@/types'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { DashboardStatsSkeleton } from '@/components/ui/skeleton-loaders'
 
 export default function SettingsPage() {
-    const [loading, setLoading] = useState(true)
+    const queryClient = useQueryClient()
     const [saving, setSaving] = useState(false)
-    const [restaurant, setRestaurant] = useState<Restaurant | null>(null)
     const [form, setForm] = useState({
         name: '',
         tagline: '',
@@ -35,463 +36,247 @@ export default function SettingsPage() {
     })
     const [dietaryType, setDietaryType] = useState('both')
 
-    useEffect(() => {
-        fetchRestaurantData()
-        const storedDietary = localStorage.getItem('restaurant_dietary_type')
-        if (storedDietary) setDietaryType(storedDietary)
-    }, [])
-
-    async function fetchRestaurantData() {
-        try {
-            setLoading(true)
+    const { data: restaurant, isLoading } = useQuery<Restaurant | null>({
+        queryKey: ['restaurant-settings', RESTAURANT_ID],
+        queryFn: async () => {
             const res = await fetch(`/api/settings?restaurantId=${RESTAURANT_ID}`)
             if (res.ok) {
                 const data = await res.json()
-                const r = data.restaurant
-                if (r) {
-                    setRestaurant(r)
-                    setForm({
-                        name: r.name || '',
-                        tagline: r.tagline || '',
-                        phone: r.phone || '',
-                        whatsapp_number: r.whatsapp_number || '',
-                        email: r.email || '',
-                        address: r.address || '',
-                        city: r.city || '',
-                        tax_percentage: r.tax_percentage?.toString() || '',
-                        delivery_charge: r.delivery_charge?.toString() || '',
-                        min_order_amount: r.min_order_amount?.toString() || '',
-                        avg_preparation_time: r.avg_preparation_time?.toString() || '',
-                        opening_time: r.opening_time || '',
-                        closing_time: r.closing_time || '',
-                        upi_id: r.upi_id || '',
-                    })
-                }
-            } else {
-                const { data, error } = await supabase
-                    .from('restaurants')
-                    .select('*')
-                    .eq('id', RESTAURANT_ID)
-                    .single()
-
-                if (error) throw error
-
-                if (data) {
-                    setRestaurant(data)
-                    setForm({
-                        name: data.name || '',
-                        tagline: data.tagline || '',
-                        phone: data.phone || '',
-                        whatsapp_number: data.whatsapp_number || '',
-                        email: data.email || '',
-                        address: data.address || '',
-                        city: data.city || '',
-                        tax_percentage: data.tax_percentage?.toString() || '',
-                        delivery_charge: data.delivery_charge?.toString() || '',
-                        min_order_amount: data.min_order_amount?.toString() || '',
-                        avg_preparation_time: data.avg_preparation_time?.toString() || '',
-                        opening_time: data.opening_time || '',
-                        closing_time: data.closing_time || '',
-                        upi_id: data.upi_id || '',
-                    })
-                }
+                return data.restaurant || null
             }
-        } catch (error) {
-            console.warn('Error fetching restaurant data:', error)
-            toast.error('Failed to load settings from database')
-        } finally {
-            setLoading(false)
+            const { data, error } = await supabase
+                .from('restaurants')
+                .select('*')
+                .eq('id', RESTAURANT_ID)
+                .single()
+            if (error) throw error
+            return data
+        },
+        staleTime: 1000 * 60 * 10, // 10 minutes fresh
+    })
+
+    useEffect(() => {
+        if (restaurant) {
+            setForm({
+                name: restaurant.name || '',
+                tagline: restaurant.tagline || '',
+                phone: restaurant.phone || '',
+                whatsapp_number: restaurant.whatsapp_number || '',
+                email: restaurant.email || '',
+                address: restaurant.address || '',
+                city: restaurant.city || '',
+                tax_percentage: restaurant.tax_percentage?.toString() || '',
+                delivery_charge: restaurant.delivery_charge?.toString() || '',
+                min_order_amount: restaurant.min_order_amount?.toString() || '',
+                avg_preparation_time: restaurant.avg_preparation_time?.toString() || '',
+                opening_time: restaurant.opening_time || '',
+                closing_time: restaurant.closing_time || '',
+                upi_id: restaurant.upi_id || '',
+            })
         }
-    }
+        const storedDietary = localStorage.getItem('restaurant_dietary_type')
+        if (storedDietary) setDietaryType(storedDietary)
+    }, [restaurant])
 
-    async function handleSave() {
+    async function handleSaveSettings() {
         try {
-            setSaving(true)
+            if (!form.name || !form.phone) {
+                toast.error('Restaurant Name and Phone are required')
+                return
+            }
 
-            const updateData = {
+            setSaving(true)
+            const payload = {
                 id: RESTAURANT_ID,
                 name: form.name,
-                tagline: form.tagline || null,
+                tagline: form.tagline,
                 phone: form.phone,
-                whatsapp_number: form.whatsapp_number || null,
-                email: form.email || null,
+                whatsapp_number: form.whatsapp_number,
+                email: form.email,
                 address: form.address,
                 city: form.city,
-                tax_percentage: parseFloat(form.tax_percentage) || 0,
-                delivery_charge: parseFloat(form.delivery_charge) || 0,
-                min_order_amount: parseFloat(form.min_order_amount) || 0,
-                avg_preparation_time: parseInt(form.avg_preparation_time) || 15,
-                opening_time: form.opening_time || null,
-                closing_time: form.closing_time || null,
-                upi_id: form.upi_id || null,
+                tax_percentage: form.tax_percentage ? parseFloat(form.tax_percentage) : 0,
+                delivery_charge: form.delivery_charge ? parseFloat(form.delivery_charge) : 0,
+                min_order_amount: form.min_order_amount ? parseFloat(form.min_order_amount) : 0,
+                avg_preparation_time: form.avg_preparation_time ? parseInt(form.avg_preparation_time) : 25,
+                opening_time: form.opening_time,
+                closing_time: form.closing_time,
+                upi_id: form.upi_id,
             }
 
             const res = await fetch('/api/settings', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updateData)
+                body: JSON.stringify(payload)
             })
 
-            const result = await res.json()
-            if (!res.ok || !result.success) {
-                throw new Error(result.error || 'Failed to save settings')
-            }
+            if (!res.ok) throw new Error('Failed to update settings')
 
             localStorage.setItem('restaurant_dietary_type', dietaryType)
-            toast.success('Settings saved successfully!')
-            fetchRestaurantData()
-        } catch (error: unknown) {
+            queryClient.invalidateQueries({ queryKey: ['restaurant-settings', RESTAURANT_ID] })
+            toast.success('Restaurant profile and preferences saved successfully')
+        } catch (error) {
             console.error('Error saving settings:', error)
-            toast.error(error instanceof Error ? error.message : 'Failed to save settings')
+            toast.error('Failed to save settings')
         } finally {
             setSaving(false)
         }
     }
 
-    if (loading) {
-        return (
-            <div className="flex min-h-[400px] items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                    <p className="text-muted-foreground animate-pulse font-medium">Loading Preferences...</p>
-                </div>
-            </div>
-        )
-    }
-
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
-            <div className="flex items-center justify-between">
-                <PageHeader
-                    title="System Settings"
-                    description="Configure your restaurant's profile and operations"
-                />
-                <Button onClick={handleSave} disabled={saving} className="bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-primary/20 transition-all px-8 h-12 rounded-xl hidden md:flex">
-                    <Save className="mr-2 h-5 w-5" />
-                    {saving ? 'Saving...' : 'Save All Changes'}
+        <div className="space-y-6 pb-20">
+            <PageHeader
+                title="Restaurant Settings"
+                description="Configure your business profile, operating hours, taxes, delivery fees, and UPI payouts."
+            >
+                <Button
+                    onClick={handleSaveSettings}
+                    disabled={saving || isLoading}
+                    className="bg-[#FF6B00] hover:bg-[#e66000] text-white gap-2 font-bold rounded-xl"
+                >
+                    <Save className="w-4 h-4" />
+                    {saving ? 'Saving...' : 'Save Changes'}
                 </Button>
-            </div>
+            </PageHeader>
 
-            <div className="grid gap-8 max-w-5xl mx-auto">
-                {/* General Information */}
-                <Card className="glass-panel border-0 overflow-hidden relative group">
-                    <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
-                    <CardHeader>
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                                <Store className="h-5 w-5" />
+            {isLoading ? (
+                <DashboardStatsSkeleton />
+            ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* General Profile */}
+                    <Card className="bg-white border-gray-100 shadow-xs rounded-2xl">
+                        <CardHeader className="pb-3 border-b border-gray-50 flex flex-row items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center text-[#FF6B00]">
+                                <Store className="w-4 h-4" />
                             </div>
                             <div>
-                                <CardTitle className="text-lg">Restaurant Profile</CardTitle>
-                                <CardDescription>Basic information displayed to customers</CardDescription>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="grid gap-6 md:grid-cols-2">
-                        <div className="space-y-2">
-                            <Label htmlFor="name" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Restaurant Name</Label>
-                            <Input
-                                id="name"
-                                value={form.name}
-                                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                className="bg-secondary/20 border-border/50 h-11"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="tagline" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Tagline / Slogan</Label>
-                            <Input
-                                id="tagline"
-                                value={form.tagline}
-                                onChange={(e) => setForm({ ...form, tagline: e.target.value })}
-                                className="bg-secondary/20 border-border/50 h-11"
-                            />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Contact & Location */}
-                <Card className="glass-panel border-0 overflow-hidden relative group">
-                    <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
-                    <CardHeader>
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform">
-                                <MapPin className="h-5 w-5" />
-                            </div>
-                            <div>
-                                <CardTitle className="text-lg">Location & Contact</CardTitle>
-                                <CardDescription>Address and communication details</CardDescription>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="grid gap-6 md:grid-cols-2">
-                        <div className="space-y-2">
-                            <Label htmlFor="phone" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Phone Number</Label>
-                            <div className="relative">
-                                <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                <Input
-                                    id="phone"
-                                    className="pl-10 bg-secondary/20 border-border/50 h-11"
-                                    value={form.phone}
-                                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                                />
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="whatsapp" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">WhatsApp Business</Label>
-                            <div className="relative">
-                                <Smartphone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                <Input
-                                    id="whatsapp"
-                                    value={form.whatsapp_number}
-                                    onChange={(e) => setForm({ ...form, whatsapp_number: e.target.value })}
-                                    className="pl-10 bg-secondary/20 border-border/50 h-11"
-                                />
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email Address</Label>
-                            <div className="relative">
-                                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                <Input
-                                    id="email"
-                                    className="pl-10 bg-secondary/20 border-border/50 h-11"
-                                    value={form.email}
-                                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                                />
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="city" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">City</Label>
-                            <div className="relative">
-                                <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                <Input
-                                    id="city"
-                                    value={form.city}
-                                    onChange={(e) => setForm({ ...form, city: e.target.value })}
-                                    className="pl-10 bg-secondary/20 border-border/50 h-11"
-                                />
-                            </div>
-                        </div>
-                        <div className="space-y-2 md:col-span-2">
-                            <Label htmlFor="address" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Full Address</Label>
-                            <Textarea
-                                id="address"
-                                value={form.address}
-                                onChange={(e) => setForm({ ...form, address: e.target.value })}
-                                className="bg-secondary/20 border-border/50 resize-none min-h-[80px]"
-                            />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <div className="grid gap-6 md:grid-cols-2">
-                    {/* Operating Hours */}
-                    <Card className="glass-panel border-0 overflow-hidden relative group">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-orange-500" />
-                        <CardHeader>
-                            <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500 group-hover:scale-110 transition-transform">
-                                    <Clock className="h-5 w-5" />
-                                </div>
-                                <div>
-                                    <CardTitle className="text-lg">Operations</CardTitle>
-                                    <CardDescription>Timings and preparation</CardDescription>
-                                </div>
+                                <CardTitle className="text-base font-bold text-[#111827]">Business Profile</CardTitle>
+                                <CardDescription className="text-xs">Restaurant identity and branding</CardDescription>
                             </div>
                         </CardHeader>
-                        <CardContent className="grid gap-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="opening" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Opening</Label>
+                        <CardContent className="p-6 space-y-4">
+                            <div className="space-y-1">
+                                <Label className="text-xs font-bold text-gray-700">Restaurant Name *</Label>
+                                <Input
+                                    value={form.name}
+                                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                                    className="bg-gray-50 border-gray-200 rounded-xl"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs font-bold text-gray-700">Tagline / Slogan</Label>
+                                <Input
+                                    value={form.tagline}
+                                    onChange={(e) => setForm({ ...form, tagline: e.target.value })}
+                                    placeholder="e.g. Authentic Taste, Fast Delivery"
+                                    className="bg-gray-50 border-gray-200 rounded-xl"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-gray-700">Phone *</Label>
                                     <Input
-                                        id="opening"
-                                        type="time"
-                                        value={form.opening_time}
-                                        onChange={(e) => setForm({ ...form, opening_time: e.target.value })}
-                                        className="bg-secondary/20 border-border/50 h-11"
+                                        value={form.phone}
+                                        onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                                        className="bg-gray-50 border-gray-200 rounded-xl text-xs"
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="closing" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Closing</Label>
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-gray-700">WhatsApp</Label>
                                     <Input
-                                        id="closing"
-                                        type="time"
-                                        value={form.closing_time}
-                                        onChange={(e) => setForm({ ...form, closing_time: e.target.value })}
-                                        className="bg-secondary/20 border-border/50 h-11"
+                                        value={form.whatsapp_number}
+                                        onChange={(e) => setForm({ ...form, whatsapp_number: e.target.value })}
+                                        className="bg-gray-50 border-gray-200 rounded-xl text-xs"
                                     />
                                 </div>
                             </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="prep-time" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Avg. Prep Time (mins)</Label>
+                            <div className="space-y-1">
+                                <Label className="text-xs font-bold text-gray-700">Email Address</Label>
                                 <Input
-                                    id="prep-time"
-                                    type="number"
-                                    value={form.avg_preparation_time}
-                                    onChange={(e) => setForm({ ...form, avg_preparation_time: e.target.value })}
-                                    className="bg-secondary/20 border-border/50 h-11"
+                                    type="email"
+                                    value={form.email}
+                                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                                    className="bg-gray-50 border-gray-200 rounded-xl"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs font-bold text-gray-700">Full Address</Label>
+                                <Textarea
+                                    value={form.address}
+                                    onChange={(e) => setForm({ ...form, address: e.target.value })}
+                                    className="bg-gray-50 border-gray-200 rounded-xl min-h-[60px]"
                                 />
                             </div>
                         </CardContent>
                     </Card>
 
-                    {/* Pricing & Tax */}
-                    <Card className="glass-panel border-0 overflow-hidden relative group">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-green-500" />
-                        <CardHeader>
-                            <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-xl bg-green-500/10 flex items-center justify-center text-green-500 group-hover:scale-110 transition-transform">
-                                    <DollarSign className="h-5 w-5" />
-                                </div>
-                                <div>
-                                    <CardTitle className="text-lg">Finance</CardTitle>
-                                    <CardDescription>Pricing, taxes and fees</CardDescription>
-                                </div>
+                    {/* Operational & Financial Settings */}
+                    <Card className="bg-white border-gray-100 shadow-xs rounded-2xl">
+                        <CardHeader className="pb-3 border-b border-gray-50 flex flex-row items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                                <DollarSign className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <CardTitle className="text-base font-bold text-[#111827]">Pricing & Payouts</CardTitle>
+                                <CardDescription className="text-xs">Taxes, minimum spend, and UPI IDs</CardDescription>
                             </div>
                         </CardHeader>
-                        <CardContent className="grid gap-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="tax" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Tax (%)</Label>
+                        <CardContent className="p-6 space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-gray-700">GST / Tax (%)</Label>
                                     <Input
-                                        id="tax"
                                         type="number"
                                         value={form.tax_percentage}
                                         onChange={(e) => setForm({ ...form, tax_percentage: e.target.value })}
-                                        className="bg-secondary/20 border-border/50 h-11"
+                                        placeholder="e.g. 5"
+                                        className="bg-gray-50 border-gray-200 rounded-xl text-xs"
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="delivery" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Delivery Charge (₹)</Label>
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-gray-700">Delivery Fee (₹)</Label>
                                     <Input
-                                        id="delivery"
                                         type="number"
                                         value={form.delivery_charge}
                                         onChange={(e) => setForm({ ...form, delivery_charge: e.target.value })}
-                                        className="bg-secondary/20 border-border/50 h-11"
+                                        placeholder="e.g. 30"
+                                        className="bg-gray-50 border-gray-200 rounded-xl text-xs"
                                     />
                                 </div>
                             </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="min-order" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Min Order Value (₹)</Label>
+                            <div className="space-y-1">
+                                <Label className="text-xs font-bold text-gray-700">Merchant UPI ID (For QR Orders)</Label>
                                 <Input
-                                    id="min-order"
-                                    type="number"
-                                    value={form.min_order_amount}
-                                    onChange={(e) => setForm({ ...form, min_order_amount: e.target.value })}
-                                    className="bg-secondary/20 border-border/50 h-11"
+                                    value={form.upi_id}
+                                    onChange={(e) => setForm({ ...form, upi_id: e.target.value })}
+                                    placeholder="e.g. merchant@icici"
+                                    className="bg-gray-50 border-gray-200 font-mono rounded-xl text-xs"
                                 />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-gray-700">Opening Time</Label>
+                                    <Input
+                                        type="time"
+                                        value={form.opening_time}
+                                        onChange={(e) => setForm({ ...form, opening_time: e.target.value })}
+                                        className="bg-gray-50 border-gray-200 rounded-xl text-xs"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-gray-700">Closing Time</Label>
+                                    <Input
+                                        type="time"
+                                        value={form.closing_time}
+                                        onChange={(e) => setForm({ ...form, closing_time: e.target.value })}
+                                        className="bg-gray-50 border-gray-200 rounded-xl text-xs"
+                                    />
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
                 </div>
-
-                {/* Payment Information */}
-                <Card className="glass-panel border-0 overflow-hidden relative group">
-                    <div className="absolute top-0 left-0 w-1 h-full bg-purple-500" />
-                    <CardHeader>
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-500 group-hover:scale-110 transition-transform">
-                                <Smartphone className="h-5 w-5" />
-                            </div>
-                            <div>
-                                <CardTitle className="text-lg">Digital Payments</CardTitle>
-                                <CardDescription>UPI configurations</CardDescription>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-2 max-w-md">
-                            <Label htmlFor="upi" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">UPI ID (Merchant VPA)</Label>
-                            <Input
-                                id="upi"
-                                placeholder="merchant@upi"
-                                value={form.upi_id}
-                                onChange={(e) => setForm({ ...form, upi_id: e.target.value })}
-                                className="bg-secondary/20 border-border/50 h-11 font-mono"
-                            />
-                            <p className="text-xs text-muted-foreground mt-1">This VPA will be encoded in QR codes for direct payments.</p>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Dietary Configuration */}
-                <Card className="glass-panel border-0 overflow-hidden relative group">
-                    <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500" />
-                    <CardHeader>
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
-                                <Utensils className="h-5 w-5" />
-                            </div>
-                            <div>
-                                <CardTitle className="text-lg">Dietary Configuration</CardTitle>
-                                <CardDescription>Set your restaurant's dietary restrictions</CardDescription>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-4 max-w-md">
-                            <div className="flex flex-col gap-3">
-                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Restaurant Type</Label>
-                                <div className="grid grid-cols-3 gap-2">
-                                    <button
-                                        onClick={() => setDietaryType('veg_only')}
-                                        className={cn(
-                                            "flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all gap-2",
-                                            dietaryType === 'veg_only'
-                                                ? "border-green-500 bg-green-50 text-green-700 font-bold"
-                                                : "border-transparent bg-secondary/50 hover:bg-secondary text-muted-foreground"
-                                        )}
-                                    >
-                                        <div className="w-4 h-4 border border-green-600 bg-green-600 rounded-full" />
-                                        <span className="text-xs">Veg Only</span>
-                                    </button>
-                                    <button
-                                        onClick={() => setDietaryType('non_veg_only')}
-                                        className={cn(
-                                            "flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all gap-2",
-                                            dietaryType === 'non_veg_only'
-                                                ? "border-red-500 bg-red-50 text-red-700 font-bold"
-                                                : "border-transparent bg-secondary/50 hover:bg-secondary text-muted-foreground"
-                                        )}
-                                    >
-                                        <div className="w-4 h-4 border border-red-600 bg-red-600 rounded-full" />
-                                        <span className="text-xs">Non-Veg Only</span>
-                                    </button>
-                                    <button
-                                        onClick={() => setDietaryType('both')}
-                                        className={cn(
-                                            "flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all gap-2",
-                                            dietaryType === 'both'
-                                                ? "border-blue-500 bg-blue-50 text-blue-700 font-bold"
-                                                : "border-transparent bg-secondary/50 hover:bg-secondary text-muted-foreground"
-                                        )}
-                                    >
-                                        <div className="flex gap-1">
-                                            <div className="w-2 h-2 border border-green-600 bg-green-600 rounded-full" />
-                                            <div className="w-2 h-2 border border-red-600 bg-red-600 rounded-full" />
-                                        </div>
-                                        <span className="text-xs">Both</span>
-                                    </button>
-                                </div>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                                This setting restricts what kind of items can be added to the menu.
-                                {dietaryType === 'veg_only' && <span className="text-green-600 font-bold block mt-1">Only Vegetarian items can be added.</span>}
-                                {dietaryType === 'non_veg_only' && <span className="text-red-600 font-bold block mt-1">Only Non-Vegetarian items can be added.</span>}
-                            </p>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Mobile Save Button */}
-            <div className="fixed bottom-0 left-0 w-full p-4 bg-background/80 backdrop-blur-lg border-t border-border mt-8 md:hidden z-50">
-                <Button size="lg" onClick={handleSave} disabled={saving} className="w-full h-12 rounded-xl font-bold shadow-lg">
-                    <Save className="mr-2 h-5 w-5" />
-                    {saving ? 'Saving...' : 'Save All Settings'}
-                </Button>
-            </div>
+            )}
         </div>
     )
 }
