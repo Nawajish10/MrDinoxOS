@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight, ShoppingBag } from 'lucide-react'
+import { ChevronRight, ShoppingBag, ShoppingCart } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { useCartStore } from '@/store/cartStore'
 import { useUIStore } from '@/store/uiStore'
@@ -37,14 +37,14 @@ export function FloatingCartButton() {
                 >
                     <div 
                         onClick={openCart}
-                        className="bg-gray-950/95 backdrop-blur-md text-white border border-gray-800 rounded-2xl p-3.5 px-4 flex items-center justify-between shadow-[0_8px_30px_rgba(0,0,0,0.18)] cursor-pointer hover:bg-black transition-all active:scale-98"
+                        className="bg-[#FF5A1F] hover:bg-[#e64f19] text-white rounded-2xl p-3 px-4 flex items-center justify-between shadow-[0_8px_30px_rgba(255,90,31,0.35)] cursor-pointer transition-all active:scale-98"
                     >
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-[#FF6B00] text-white flex items-center justify-center font-bold text-sm shadow-sm shadow-[#FF6B00]/30 shrink-0">
-                                <ShoppingBag className="w-5 h-5" />
+                            <div className="w-9 h-9 rounded-xl bg-white/20 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                                <ShoppingCart className="w-4 h-4" />
                             </div>
                             <div className="flex flex-col">
-                                <span className="text-[11px] font-medium text-gray-300">
+                                <span className="text-[11px] font-medium text-white/90">
                                     {count} {count === 1 ? 'item added' : 'items added'}
                                 </span>
                                 <span className="font-extrabold text-base text-white tracking-tight leading-tight">
@@ -54,10 +54,10 @@ export function FloatingCartButton() {
                         </div>
 
                         <button 
-                            className="bg-[#FF6B00] hover:bg-[#e66000] text-white font-bold text-xs sm:text-sm px-4 py-2 rounded-xl flex items-center gap-1 shadow-sm shadow-[#FF6B00]/25 transition-all pointer-events-none"
+                            className="bg-white text-[#FF5A1F] font-bold text-xs sm:text-sm px-3.5 py-1.5 rounded-xl flex items-center gap-1 shadow-xs transition-all pointer-events-none"
                         >
                             <span>View Cart</span>
-                            <ChevronRight className="w-4 h-4" />
+                            <ChevronRight className="w-3.5 h-3.5" />
                         </button>
                     </div>
                 </motion.div>

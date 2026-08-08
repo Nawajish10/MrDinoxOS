@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { MenuItem } from '@/types'
-import { Heart, Plus, Minus, Star, Flame } from 'lucide-react'
+import { Plus, Minus, Flame } from 'lucide-react'
 import { useCartStore } from '@/store/cartStore'
 import { cn } from '@/lib/utils'
 import Image from 'next/image'
@@ -30,7 +30,6 @@ const getDefaultImage = (id: string) => {
 
 export function FoodCard({ item, onItemClick }: FoodCardProps) {
     const { items: cartItems, addItem, updateQuantity, removeItem } = useCartStore()
-    const [isFavorited, setIsFavorited] = useState(false)
     const [imageLoaded, setImageLoaded] = useState(false)
 
     // Match cart item by id
@@ -39,11 +38,13 @@ export function FoodCard({ item, onItemClick }: FoodCardProps) {
 
     const handleAdd = (e: React.MouseEvent) => {
         e.stopPropagation()
+        if (!item.is_available) return
         addItem(item, 1, '')
     }
 
     const handleIncrement = (e: React.MouseEvent) => {
         e.stopPropagation()
+        if (!item.is_available) return
         if (cartItem) {
             updateQuantity(cartItem.cartId, quantity + 1)
         } else {
@@ -62,19 +63,16 @@ export function FoodCard({ item, onItemClick }: FoodCardProps) {
         }
     }
 
-    const toggleFavorite = (e: React.MouseEvent) => {
-        e.stopPropagation()
-        setIsFavorited(!isFavorited)
-    }
-
     const displayPrice = item.discounted_price ? item.discounted_price : item.price
     const originalPrice = item.discounted_price ? item.price : null
-    const ratingScore = ((item.name.length % 5) * 0.1 + 4.4).toFixed(1)
 
     return (
         <article
             onClick={() => onItemClick && onItemClick(item)}
-            className="group bg-white rounded-2xl border border-[#E5E7EB] hover:border-orange-200 overflow-hidden shadow-[0_2px_10px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_rgba(255,107,0,0.08)] transition-all duration-300 flex flex-col justify-between cursor-pointer"
+            className={cn(
+                "group bg-white rounded-2xl border border-[#E5E7EB] hover:border-gray-300 overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.02)] hover:shadow-md transition-all duration-200 flex flex-col justify-between cursor-pointer",
+                !item.is_available && "opacity-60 cursor-not-allowed"
+            )}
         >
             {/* Top Image Container */}
             <div className="relative aspect-[4/3] w-full overflow-hidden bg-gray-100">
@@ -89,120 +87,100 @@ export function FoodCard({ item, onItemClick }: FoodCardProps) {
                     loading="lazy"
                     onLoad={() => setImageLoaded(true)}
                     className={cn(
-                        "w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out",
+                        "w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ease-out",
                         imageLoaded ? "opacity-100" : "opacity-0"
                     )}
                 />
 
-                {/* Top Badges */}
-                <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 z-10">
-                    {item.is_bestseller && (
-                        <span className="bg-[#FF6B00] text-white text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-xs">
-                            Bestseller
+                {/* Top Badges (Bestseller on top-left, Veg/Non-veg on top-right) */}
+                <div className="absolute top-2.5 left-2.5 z-10">
+                    {item.is_bestseller ? (
+                        <span className="bg-[#111827]/90 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
+                            <Flame className="w-2.5 h-2.5 fill-[#FF5A1F] text-[#FF5A1F]" />
+                            <span>Bestseller</span>
                         </span>
-                    )}
-                    {item.is_spicy && (
-                        <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs flex items-center gap-0.5">
+                    ) : item.is_new ? (
+                        <span className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs">
+                            New
+                        </span>
+                    ) : item.is_spicy ? (
+                        <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs flex items-center gap-0.5">
                             <Flame className="w-2.5 h-2.5 fill-white" />
                             <span>Spicy</span>
                         </span>
-                    )}
-                    {item.is_new && !item.is_bestseller && (
-                        <span className="bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-xs">
-                            New
-                        </span>
-                    )}
+                    ) : null}
                 </div>
 
-                {/* Favorite Heart Button */}
-                <button
-                    onClick={toggleFavorite}
-                    className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-white/90 backdrop-blur-xs flex items-center justify-center text-gray-500 hover:text-red-500 transition-colors shadow-xs z-10"
-                    aria-label="Save dish"
-                >
-                    <Heart className={cn("w-3.5 h-3.5", isFavorited ? "fill-red-500 text-red-500" : "")} />
-                </button>
+                {/* Veg / Non-Veg Indicator Icon (Top Right) */}
+                <div className="absolute top-2.5 right-2.5 z-10 bg-white/95 backdrop-blur-xs p-1 rounded-sm shadow-2xs border border-gray-100">
+                    <div className={cn(
+                        "w-3.5 h-3.5 border flex items-center justify-center p-0.5 rounded-xs",
+                        item.is_veg ? "border-emerald-600" : "border-red-600"
+                    )}>
+                        <div className={cn(
+                            "w-1.5 h-1.5 rounded-full",
+                            item.is_veg ? "bg-emerald-600" : "bg-red-600"
+                        )} />
+                    </div>
+                </div>
             </div>
 
             {/* Bottom Content Container */}
-            <div className="p-3.5 flex-1 flex flex-col justify-between gap-2.5">
+            <div className="p-3.5 sm:p-4 flex-1 flex flex-col justify-between gap-2.5">
                 <div>
-                    {/* Veg Indicator & Rating Row */}
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                        <div className="flex items-center gap-1.5">
-                            {/* Veg / Non-veg indicator icon */}
-                            <div className={cn(
-                                "w-3.5 h-3.5 border flex items-center justify-center p-0.5 rounded-xs",
-                                item.is_veg ? "border-emerald-600" : "border-red-600"
-                            )}>
-                                <div className={cn(
-                                    "w-1.5 h-1.5 rounded-full",
-                                    item.is_veg ? "bg-emerald-600" : "bg-red-600"
-                                )} />
-                            </div>
-                            <span className="text-[10px] font-bold text-gray-500">
-                                {item.is_veg ? 'Pure Veg' : 'Non-Veg'}
-                            </span>
-                        </div>
-
-                        {/* Rating Pill */}
-                        <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold">
-                            <Star className="w-2.5 h-2.5 fill-emerald-600 text-emerald-600" />
-                            <span>{ratingScore}</span>
-                        </div>
-                    </div>
-
                     {/* Dish Title */}
-                    <h3 className="font-bold text-sm text-[#111827] line-clamp-1 group-hover:text-[#FF6B00] transition-colors">
+                    <h3 className="font-bold text-sm sm:text-base text-[#111827] line-clamp-1 group-hover:text-[#FF5A1F] transition-colors">
                         {item.name}
                     </h3>
 
                     {/* Short Description */}
-                    {item.description && (
-                        <p className="text-xs text-[#6B7280] line-clamp-2 mt-0.5 leading-relaxed font-normal">
-                            {item.description}
-                        </p>
-                    )}
+                    <p className="text-xs text-[#6B7280] line-clamp-2 mt-1 leading-relaxed font-normal">
+                        {item.description || 'Delicious freshly prepared recipe with authentic spices.'}
+                    </p>
                 </div>
 
-                {/* Price & Quantity Add/Stepper Row */}
-                <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2 mt-auto">
-                    {/* Price with Optional Discount */}
+                {/* Price & Add Button Row */}
+                <div className="pt-2 border-t border-gray-50 flex items-center justify-between gap-2 mt-auto">
+                    {/* Price with Optional Strikethrough Discount */}
                     <div className="flex items-baseline gap-1.5">
-                        <span className="text-base font-extrabold text-[#111827]">
+                        <span className="text-base sm:text-lg font-extrabold text-[#111827]">
                             ₹{displayPrice}
                         </span>
                         {originalPrice && (
-                            <span className="text-xs text-gray-400 line-through font-medium">
+                            <span className="text-xs text-[#6B7280] line-through font-medium">
                                 ₹{originalPrice}
                             </span>
                         )}
                     </div>
 
                     {/* Add / Stepper Button */}
-                    {quantity === 0 ? (
+                    {!item.is_available ? (
+                        <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
+                            Sold Out
+                        </span>
+                    ) : quantity === 0 ? (
                         <button
                             onClick={handleAdd}
-                            className="h-8 px-4 bg-[#FF6B00] hover:bg-[#e66000] active:scale-95 text-white font-bold text-xs rounded-full shadow-[0_2px_8px_rgba(255,107,0,0.25)] transition-all flex items-center justify-center gap-1 cursor-pointer"
+                            className="h-8 px-3.5 sm:px-4 bg-white hover:bg-orange-50 active:scale-95 text-[#FF5A1F] font-bold text-xs sm:text-sm rounded-xl border border-[#FF5A1F]/60 hover:border-[#FF5A1F] transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
                         >
-                            <span>Add</span>
                             <Plus className="w-3.5 h-3.5" />
+                            <span>Add</span>
                         </button>
                     ) : (
                         <div
                             onClick={(e) => e.stopPropagation()}
-                            className="h-8 px-2 bg-[#FF6B00] text-white font-extrabold text-xs rounded-full flex items-center gap-2 shadow-[0_2px_8px_rgba(255,107,0,0.25)]"
+                            className="h-8 px-2 bg-[#FF5A1F] text-white font-extrabold text-xs sm:text-sm rounded-xl flex items-center gap-2 shadow-xs shadow-[#FF5A1F]/30"
                         >
                             <button
                                 onClick={handleDecrement}
-                                className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-black/10 active:scale-90 transition-all cursor-pointer"
+                                className="w-5 h-5 flex items-center justify-center rounded-md hover:bg-black/15 active:scale-90 transition-all cursor-pointer"
                             >
                                 <Minus className="w-3 h-3" />
                             </button>
                             <span className="min-w-[14px] text-center">{quantity}</span>
                             <button
                                 onClick={handleIncrement}
-                                className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-black/10 active:scale-90 transition-all cursor-pointer"
+                                className="w-5 h-5 flex items-center justify-center rounded-md hover:bg-black/15 active:scale-90 transition-all cursor-pointer"
                             >
                                 <Plus className="w-3 h-3" />
                             </button>

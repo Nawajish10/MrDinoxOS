@@ -8,12 +8,10 @@ import { useRestaurant } from '@/hooks/useRestaurant'
 import { useCartStore } from '@/store/cartStore'
 import { useRunningSession } from '@/hooks/customer/useRunningSession'
 import { MenuItemModal } from '@/components/customer/menu/MenuItemModal'
-import { HeroBanner } from '@/components/customer/menu/HeroBanner'
 import { CategoryScroller } from '@/components/customer/menu/CategoryScroller'
 import { FoodCard } from '@/components/customer/menu/FoodCard'
 import { TrustInfoStrip } from '@/components/customer/menu/TrustInfoStrip'
 import { SearchBar } from '@/components/customer/menu/SearchBar'
-import { PromoOfferStrip } from '@/components/customer/menu/PromoOfferStrip'
 import { MenuItem } from '@/types'
 import { supabase } from '@/lib/supabase'
 import { CategoryScrollerSkeleton, MenuCardSkeleton } from '@/components/ui/skeleton-loaders'
@@ -46,7 +44,6 @@ function MenuContent() {
         if (tableParam && restaurant?.id) {
             const validateTable = async () => {
                 try {
-                    // Try fetching from server API first
                     const res = await fetch(`/api/tables?restaurantId=${restaurant.id}`)
                     if (res.ok) {
                         const data = await res.json()
@@ -66,7 +63,7 @@ function MenuContent() {
                         }
                     }
 
-                    // Fallback to Supabase
+                    // Fallback query
                     let query = supabase
                         .from('restaurant_tables')
                         .select('id, table_number')
@@ -100,52 +97,21 @@ function MenuContent() {
                     setTableError(null)
                 }
             }
+
             validateTable()
         }
-    }, [tableParam, restaurant?.id, setTableInfo])
+    }, [tableParam, restaurant, setTableInfo])
 
-    // Search and filter states
+    // Filter states
     const [activeCategory, setActiveCategory] = useState<string>('all')
     const [searchQuery, setSearchQuery] = useState('')
     const [dietaryFilter, setDietaryFilter] = useState<'all' | 'veg' | 'non-veg'>('all')
     const [onlySpicy, setOnlySpicy] = useState(false)
     const [onlyBestseller, setOnlyBestseller] = useState(false)
 
+    // Modal state for food customisation
     const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null)
     const [isModalOpen, setIsModalOpen] = useState(false)
-
-    // Realtime session & order clearing when paid
-    useEffect(() => {
-        const checkSessionStatus = async () => {
-            if (!customerPhone) return
-            const { data } = await supabase
-                .from('orders')
-                .select('status, payment_status, customers!inner(phone)')
-                .eq('customers.phone', customerPhone)
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .maybeSingle()
-
-            if (data && data.payment_status === 'paid') {
-                clearCart()
-                sessionStorage.removeItem('restaurantId')
-                sessionStorage.removeItem('tableId')
-                return true
-            }
-            return false
-        }
-        checkSessionStatus()
-
-        const channel = supabase.channel('menu-updates')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'orders' },
-                async () => { await checkSessionStatus() }
-            )
-            .subscribe()
-
-        return () => { supabase.removeChannel(channel) }
-    }, [customerPhone, clearCart])
 
     // Filter items
     const filteredItems = useMemo(() => {
@@ -196,7 +162,7 @@ function MenuContent() {
                 <p className="text-xs text-[#6B7280] max-w-sm">{restaurantError}</p>
                 <button 
                     onClick={() => router.push('/customer/menu')} 
-                    className="px-5 py-2 bg-[#FF6B00] text-white rounded-full text-xs font-bold shadow-sm"
+                    className="px-5 py-2 bg-[#FF5A1F] text-white rounded-full text-xs font-bold shadow-xs"
                 >
                     View Menu
                 </button>
@@ -204,21 +170,16 @@ function MenuContent() {
         )
     }
 
-    if (loadingRestaurant || loadingMenu) {
+    if (loadingRestaurant || (loadingMenu && (!menuItems || menuItems.length === 0))) {
         return (
-            <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-                <div className="h-44 w-full bg-gray-100 rounded-3xl animate-pulse" />
-                <div className="flex gap-3 overflow-hidden">
-                    <div className="h-16 w-20 bg-gray-100 rounded-2xl animate-pulse" />
-                    <div className="h-16 w-20 bg-gray-100 rounded-2xl animate-pulse" />
-                    <div className="h-16 w-20 bg-gray-100 rounded-2xl animate-pulse" />
-                    <div className="h-16 w-20 bg-gray-100 rounded-2xl animate-pulse" />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="h-64 bg-gray-100 rounded-2xl animate-pulse" />
-                    <div className="h-64 bg-gray-100 rounded-2xl animate-pulse" />
-                    <div className="h-64 bg-gray-100 rounded-2xl animate-pulse" />
-                    <div className="h-64 bg-gray-100 rounded-2xl animate-pulse" />
+            <div className="max-w-[1240px] mx-auto px-4 sm:px-6 py-6 space-y-6">
+                <div className="h-12 w-full bg-gray-100 rounded-xl animate-pulse" />
+                <CategoryScrollerSkeleton />
+                <div className="space-y-4">
+                    <div className="h-6 w-48 bg-gray-100 rounded-md animate-pulse" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {[1, 2, 3, 4].map(i => <MenuCardSkeleton key={i} />)}
+                    </div>
                 </div>
             </div>
         )
@@ -239,86 +200,27 @@ function MenuContent() {
     }).filter((group) => group.items.length > 0) || []
 
     return (
-        <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3 sm:py-5">
+        <div className="max-w-[1240px] mx-auto px-4 sm:px-6 py-3 sm:py-5">
             {/* Active Running Bill Session Banner */}
             {hasActiveSession && session && (
                 <div className="mb-4 bg-gradient-to-r from-orange-500/10 via-amber-500/10 to-orange-500/5 border border-orange-200/80 rounded-2xl p-4 flex items-center justify-between shadow-xs">
                     <div className="flex items-center gap-3">
-                        <span className="w-2.5 h-2.5 rounded-full bg-[#FF6B00] animate-pulse" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#FF5A1F] animate-pulse" />
                         <div>
-                            <p className="text-xs font-black uppercase tracking-wider text-[#FF6B00]">Running Bill Active</p>
+                            <p className="text-xs font-black uppercase tracking-wider text-[#FF5A1F]">Running Bill Active</p>
                             <p className="text-xs font-bold text-[#111827]">Table {tableParam || session.table_id || '1'} • Add dishes anytime</p>
                         </div>
                     </div>
                     <button
                         onClick={() => router.push(`/customer/track/${session.order_id}`)}
-                        className="bg-[#FF6B00] hover:bg-[#e66000] text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs transition-transform active:scale-95 cursor-pointer"
+                        className="bg-[#FF5A1F] hover:bg-[#e64f19] text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs transition-transform active:scale-95 cursor-pointer"
                     >
                         View Bill
                     </button>
                 </div>
             )}
 
-            {/* 1. Hero Promotional Banner */}
-            <HeroBanner />
-
-            {/* 2. Popular Categories Horizontal Scroller */}
-            {loadingMenu && (!categories || categories.length === 0) ? (
-                <CategoryScrollerSkeleton />
-            ) : (
-                <CategoryScroller
-                    categories={categories || []}
-                    activeCategory={activeCategory}
-                    onSelectCategory={setActiveCategory}
-                />
-            )}
-
-            {/* 3. Recommended for you Section */}
-            {loadingMenu ? (
-                <section className="my-7">
-                    <div className="h-5 w-48 bg-gray-200 rounded-md mb-4 animate-pulse" />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-                        {[1, 2, 3, 4].map(i => <MenuCardSkeleton key={i} />)}
-                    </div>
-                </section>
-            ) : recommendedItems.length > 0 && activeCategory === 'all' && !searchQuery && (
-                <section id="recommended-section" className="my-7">
-                    <div className="flex items-center justify-between mb-4 px-0.5">
-                        <div className="flex items-center gap-2">
-                            <h3 className="text-lg sm:text-xl font-extrabold text-[#111827] tracking-tight flex items-center gap-1.5">
-                                <span>Recommended for you</span>
-                                <span className="text-[#FF6B00]">🔥</span>
-                            </h3>
-                        </div>
-                        <button
-                            onClick={() => {
-                                const el = document.getElementById('all-menu-section')
-                                if (el) el.scrollIntoView({ behavior: 'smooth' })
-                            }}
-                            className="text-xs sm:text-sm font-semibold text-[#6B7280] hover:text-[#FF6B00] transition-colors flex items-center gap-0.5 cursor-pointer"
-                        >
-                            <span>See all</span>
-                            <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
-                    </div>
-
-                    {/* 4-column responsive grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-                        {recommendedItems.map((item) => (
-                            <FoodCard
-                                key={item.id}
-                                item={item}
-                                onItemClick={handleItemClick}
-                            />
-                        ))}
-                    </div>
-                </section>
-            )}
-
-            {/* 4. Trust / Information Strip */}
-            <TrustInfoStrip />
-
-            {/* 5. Search Bar & Filter Chips */}
+            {/* 1. Search Bar & Filter Button (Moved near top per reference) */}
             <SearchBar
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}
@@ -330,25 +232,76 @@ function MenuContent() {
                 onToggleBestseller={() => setOnlyBestseller(!onlyBestseller)}
             />
 
-            {/* 6. Promotional Offer Banner */}
-            <PromoOfferStrip />
+            {/* 2. Top Prominent Horizontal Category Navigation */}
+            {loadingMenu && (!categories || categories.length === 0) ? (
+                <CategoryScrollerSkeleton />
+            ) : (
+                <CategoryScroller
+                    categories={categories || []}
+                    activeCategory={activeCategory}
+                    onSelectCategory={setActiveCategory}
+                />
+            )}
 
-            {/* 7. Menu Dishes Section */}
-            <section id="all-menu-section" className="my-7 pt-2">
+            {/* 3. "Recommended for you" Section */}
+            {activeCategory === 'all' && !searchQuery && dietaryFilter === 'all' && !onlySpicy && !onlyBestseller && recommendedItems.length > 0 && (
+                <section id="recommended-section" className="my-5 sm:my-7">
+                    <div className="flex items-center justify-between mb-3 px-0.5">
+                        <div className="flex items-center gap-2">
+                            <span className="text-xl">✨</span>
+                            <div>
+                                <h3 className="text-base sm:text-lg font-bold text-[#111827] tracking-tight">
+                                    Recommended for you
+                                </h3>
+                                <p className="text-xs text-[#6B7280]">
+                                    Our chef's top picks for you
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => {
+                                const el = document.getElementById('all-menu-section')
+                                if (el) el.scrollIntoView({ behavior: 'smooth' })
+                            }}
+                            className="text-xs sm:text-sm font-semibold text-[#FF5A1F] hover:text-[#e64f19] transition-colors flex items-center gap-0.5 cursor-pointer"
+                        >
+                            <span>View all</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+
+                    {/* 4-column compact responsive grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+                        {recommendedItems.map((item) => (
+                            <FoodCard
+                                key={item.id}
+                                item={item}
+                                onItemClick={handleItemClick}
+                            />
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            {/* 4. Trust / Service Information Strip */}
+            <TrustInfoStrip />
+
+            {/* 5. Menu Categories Section */}
+            <section id="all-menu-section" className="my-5 sm:my-7 pt-1">
                 {/* When Search or Filter is active */}
                 {(searchQuery || activeCategory !== 'all' || dietaryFilter !== 'all' || onlySpicy || onlyBestseller) ? (
                     <div>
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg sm:text-xl font-bold text-[#111827]">
+                            <h3 className="text-base sm:text-lg font-bold text-[#111827]">
                                 {activeCategory !== 'all'
-                                    ? categories?.find(c => c.id === activeCategory)?.name || 'Category Items'
+                                    ? categories?.find(c => c.id === activeCategory)?.name || 'Dishes'
                                     : 'Dishes'}
                                 <span className="text-xs font-normal text-[#6B7280] ml-2">
                                     ({filteredItems.length} {filteredItems.length === 1 ? 'dish' : 'dishes'})
                                 </span>
                             </h3>
 
-                            {/* Reset filter */}
+                            {/* Reset filters */}
                             <button
                                 onClick={() => {
                                     setActiveCategory('all')
@@ -357,7 +310,7 @@ function MenuContent() {
                                     setOnlySpicy(false)
                                     setOnlyBestseller(false)
                                 }}
-                                className="text-xs font-semibold text-[#FF6B00] hover:underline cursor-pointer"
+                                className="text-xs font-semibold text-[#FF5A1F] hover:underline cursor-pointer"
                             >
                                 Clear filters
                             </button>
@@ -370,7 +323,7 @@ function MenuContent() {
                                 <p className="text-xs text-[#6B7280] mt-1">Try searching for something else or clearing filters.</p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
                                 {filteredItems.map((item) => (
                                     <FoodCard
                                         key={item.id}
@@ -382,35 +335,46 @@ function MenuContent() {
                         )}
                     </div>
                 ) : (
-                    /* Categorized Sections */
-                    <div className="space-y-10">
-                        {groupedByCategory.map(({ category, items }) => (
-                            <div key={category.id} id={`category-${category.id}`} className="space-y-4">
-                                <div className="flex items-center justify-between border-b border-gray-200/80 pb-2">
-                                    <h3 className="text-lg sm:text-xl font-bold text-[#111827] flex items-center gap-2">
-                                        <span>{category.name}</span>
-                                        <span className="text-xs font-semibold bg-gray-100 text-[#6B7280] px-2 py-0.5 rounded-full">
-                                            {items.length}
-                                        </span>
-                                    </h3>
-                                </div>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-                                    {items.map((item) => (
-                                        <FoodCard
-                                            key={item.id}
-                                            item={item}
-                                            onItemClick={handleItemClick}
-                                        />
-                                    ))}
-                                </div>
+                    /* Default: Show all categories cleanly */
+                    <div className="space-y-8 sm:space-y-10">
+                        {groupedByCategory.length === 0 && !loadingMenu ? (
+                            <div className="bg-white rounded-2xl border border-[#E5E7EB] p-10 text-center flex flex-col items-center justify-center">
+                                <span className="text-3xl mb-2">🍽️</span>
+                                <h4 className="font-bold text-sm text-[#111827]">No menu items available</h4>
+                                <p className="text-xs text-[#6B7280] mt-1">Check back later or contact restaurant staff.</p>
                             </div>
-                        ))}
+                        ) : (
+                            groupedByCategory.map((group) => (
+                                <div key={group.category.id} id={`cat-${group.category.id}`} className="space-y-3 scroll-mt-20">
+                                    <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                                        <div className="flex items-baseline gap-2">
+                                            <h3 className="text-base sm:text-lg font-bold text-[#111827]">
+                                                {group.category.name}
+                                            </h3>
+                                            <span className="text-xs font-normal text-[#6B7280]">
+                                                ({group.items.length})
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* 4-column compact cards grid */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+                                        {group.items.map((item) => (
+                                            <FoodCard
+                                                key={item.id}
+                                                item={item}
+                                                onItemClick={handleItemClick}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            ))
+                        )}
                     </div>
                 )}
             </section>
 
-            {/* Dish Detail Modal */}
+            {/* Food Customisation / Item Modal */}
             <MenuItemModal
                 item={selectedItem}
                 isOpen={isModalOpen}
@@ -426,9 +390,8 @@ function MenuContent() {
 export default function CustomerMenuPage() {
     return (
         <Suspense fallback={
-            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-                <Loader2 className="w-8 h-8 animate-spin text-[#FF6B00]" />
-                <p className="text-xs font-medium text-[#6B7280]">Loading delicious dishes...</p>
+            <div className="flex items-center justify-center min-h-[50vh]">
+                <Loader2 className="w-8 h-8 text-[#FF5A1F] animate-spin" />
             </div>
         }>
             <MenuContent />
