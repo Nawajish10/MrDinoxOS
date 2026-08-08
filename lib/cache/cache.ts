@@ -22,7 +22,7 @@ export const CACHE_VERSION = 'v1'
  */
 export function getCacheKey(
     restaurantId: string,
-    namespace: 'profile' | 'settings' | 'categories' | 'menu' | 'dashboard' | 'coupons' | 'tables',
+    namespace: 'profile' | 'settings' | 'categories' | 'menu' | 'dashboard' | 'coupons' | 'tables' | 'customers',
     identifier: string = 'all'
 ): string {
     if (!restaurantId || !restaurantId.trim()) {
