@@ -32,7 +32,6 @@ export default function OrderHistoryPage() {
         }
 
         try {
-            // Get customer ID first
             const { data: customerData, error: customerError } = await supabase
                 .from('customers')
                 .select('id')
@@ -72,11 +71,10 @@ export default function OrderHistoryPage() {
         let channel: ReturnType<typeof supabase.channel> | null = null
 
         const setupRealtime = async () => {
-            fetchOrders() // Initial fetch
+            fetchOrders()
 
             if (!customerPhone) return
 
-            // 1. Get Customer ID for filter
             const { data: customerData } = await supabase
                 .from('customers')
                 .select('id')
@@ -85,7 +83,6 @@ export default function OrderHistoryPage() {
 
             if (!customerData) return
 
-            // 2. Subscribe with filter
             channel = supabase
                 .channel(`customer-orders-${customerData.id}-${Date.now()}`)
                 .on(
@@ -96,8 +93,7 @@ export default function OrderHistoryPage() {
                         table: 'orders',
                         filter: `customer_id=eq.${customerData.id}`
                     },
-                    (payload) => {
-                        console.log('🔔 Order Update:', payload)
+                    () => {
                         fetchOrders()
                     }
                 )
@@ -111,94 +107,108 @@ export default function OrderHistoryPage() {
         }
     }, [customerPhone, fetchOrders])
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'completed': return 'bg-green-100 text-green-700'
-            case 'served': return 'bg-green-100 text-green-700'
-            case 'cancelled': return 'bg-red-100 text-red-700'
-            case 'preparing': return 'bg-orange-100 text-orange-700'
-            default: return 'bg-gray-100 text-gray-700'
-        }
-    }
-
     return (
-        <div className="min-h-screen bg-obsidian-base pb-32 text-on-surface">
-            <header className="sticky top-0 z-40 bg-surface-container-lowest/80 backdrop-blur-md border-b border-border-gray p-4 flex items-center gap-4 shadow-sm">
-                <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full hover:bg-surface-container text-on-surface">
+        <div className="min-h-screen bg-[#F8FAFC] pb-32 text-[#111827]">
+            {/* Header */}
+            <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-[#E5E7EB] p-4 flex items-center gap-4 shadow-xs">
+                <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => router.push('/customer/menu')} 
+                    className="rounded-full hover:bg-gray-100 text-[#111827]"
+                >
                     <ArrowLeft className="w-5 h-5" />
                 </Button>
-                <h1 className="text-xl font-bold tracking-tight text-on-surface">Order History</h1>
+                <h1 className="text-lg font-bold tracking-tight text-[#111827]">Order History</h1>
             </header>
 
-            <div className="p-4 max-w-lg mx-auto space-y-4">
+            <div className="p-4 max-w-lg mx-auto space-y-4 pt-6">
                 {!customerPhone ? (
-                    <div className="text-center py-10 space-y-4">
-                        <div className="w-16 h-16 bg-surface-container rounded-full flex items-center justify-center mx-auto border border-border-gray">
-                            <ShoppingBag className="w-8 h-8 text-on-surface-variant" />
+                    <div className="text-center py-12 space-y-3 bg-white rounded-2xl border border-[#E5E7EB] p-6 shadow-xs">
+                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto">
+                            <ShoppingBag className="w-8 h-8 text-gray-400" />
                         </div>
-                        <h3 className="font-bold text-lg text-on-surface">No orders found</h3>
-                        <p className="text-on-surface-variant text-sm">Place an order to see it here.</p>
-                        <Button onClick={() => router.push('/customer/menu')} className="bg-primary-container text-obsidian-base hover:bg-primary-container/90">Browse Menu</Button>
+                        <h3 className="font-bold text-base text-[#111827]">No phone session</h3>
+                        <p className="text-xs text-[#6B7280]">Add items and place an order to see your live order history.</p>
+                        <Button 
+                            onClick={() => router.push('/customer/menu')} 
+                            className="bg-[#FF6B00] hover:bg-[#e66000] text-white rounded-full font-bold text-xs px-6"
+                        >
+                            Browse Menu
+                        </Button>
                     </div>
                 ) : loading ? (
-                    <div className="flex flex-col items-center justify-center py-10 gap-4">
-                        <div className="w-8 h-8 border-4 border-primary-container border-t-transparent rounded-full animate-spin" />
-                        <p className="text-on-surface-variant text-sm">Loading history...</p>
+                    <div className="flex flex-col items-center justify-center py-16 gap-3">
+                        <div className="w-8 h-8 border-3 border-[#FF6B00] border-t-transparent rounded-full animate-spin" />
+                        <p className="text-xs text-[#6B7280]">Loading orders...</p>
                     </div>
                 ) : orders.length === 0 ? (
-                    <div className="text-center py-10 space-y-4">
-                        <h3 className="font-bold text-lg text-on-surface">No past orders</h3>
-                        <p className="text-on-surface-variant text-sm">Looks like you haven&apos;t ordered yet.</p>
-                        <Button onClick={() => router.push('/customer/menu')} className="bg-primary-container text-obsidian-base hover:bg-primary-container/90">Order Now</Button>
+                    <div className="text-center py-12 space-y-3 bg-white rounded-2xl border border-[#E5E7EB] p-6 shadow-xs">
+                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto">
+                            <ShoppingBag className="w-8 h-8 text-gray-400" />
+                        </div>
+                        <h3 className="font-bold text-base text-[#111827]">No past orders</h3>
+                        <p className="text-xs text-[#6B7280]">Looks like you haven&apos;t ordered yet.</p>
+                        <Button 
+                            onClick={() => router.push('/customer/menu')} 
+                            className="bg-[#FF6B00] hover:bg-[#e66000] text-white rounded-full font-bold text-xs px-6"
+                        >
+                            Order Now
+                        </Button>
                     </div>
                 ) : (
                     orders.map((order) => (
                         <div
                             key={order.id}
                             onClick={() => router.push(`/customer/track/${order.bill_id}`)}
-                            className="bg-surface-container-lowest p-4 rounded-xl border border-border-gray shadow-sm active:scale-[0.98] transition-all cursor-pointer hover:shadow-[0_0_15px_rgba(255,179,172,0.1)] hover:border-primary-container/30 group relative overflow-hidden"
+                            className="bg-white p-4 rounded-2xl border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:shadow-md hover:border-orange-200 transition-all cursor-pointer"
                         >
-                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-primary-container to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-
-                            <div className="flex justify-between items-start mb-2">
+                            <div className="flex justify-between items-start mb-2.5">
                                 <div className="flex items-center gap-2">
-                                    <span className="font-mono text-xs font-bold bg-surface-container text-on-surface-variant px-2 py-1 rounded">#{order.bill_id.slice(-6)}</span>
-                                    <Badge variant="secondary" className={`text-[10px] uppercase font-bold border-0 ${
-                                        order.status === 'completed' || order.status === 'served' ? 'bg-emerald-success/20 text-emerald-success' :
-                                        order.status === 'cancelled' ? 'bg-electric-red/20 text-electric-red' :
-                                        'bg-primary-container/20 text-primary-container'
-                                    }`}>
+                                    <span className="font-mono text-xs font-bold bg-gray-100 text-[#111827] px-2 py-0.5 rounded-md">
+                                        #{order.bill_id.slice(-6)}
+                                    </span>
+                                    <Badge 
+                                        variant="secondary" 
+                                        className={`text-[10px] uppercase font-bold border-0 ${
+                                            order.status === 'completed' || order.status === 'served' 
+                                                ? 'bg-emerald-50 text-emerald-700' 
+                                                : order.status === 'cancelled' 
+                                                ? 'bg-red-50 text-red-700' 
+                                                : 'bg-orange-50 text-[#FF6B00]'
+                                        }`}
+                                    >
                                         {order.status}
                                     </Badge>
                                 </div>
-                                <span className="text-xs text-on-surface-variant font-medium">
+                                <span className="text-xs text-[#6B7280] font-medium">
                                     {new Date(order.created_at).toLocaleDateString()}
                                 </span>
                             </div>
 
                             <div className="flex justify-between items-end">
                                 <div>
-                                    <div className="flex items-center gap-1.5 text-sm text-on-surface-variant mb-1">
-                                        {order.order_type === 'dine_in' ? <Utensils className="w-3 h-3" /> :
-                                            order.order_type === 'take_away' ? <Box className="w-3 h-3" /> : <MapPin className="w-3 h-3" />}
+                                    <div className="flex items-center gap-1.5 text-xs text-[#6B7280] mb-1">
+                                        {order.order_type === 'dine_in' ? <Utensils className="w-3.5 h-3.5 text-orange-500" /> :
+                                            order.order_type === 'take_away' ? <Box className="w-3.5 h-3.5 text-blue-500" /> : <MapPin className="w-3.5 h-3.5 text-emerald-500" />}
                                         <span className="capitalize">{order.order_type.replace('_', ' ')}</span>
                                     </div>
-                                    <p className="font-black text-lg text-primary-container">₹{order.total.toFixed(2)}</p>
-                                    <div className="flex gap-1 mt-1 flex-wrap">
+                                    <p className="font-extrabold text-base text-[#111827]">₹{order.total.toFixed(2)}</p>
+                                    <div className="flex gap-1.5 mt-2 flex-wrap">
                                         {order.order_items?.slice(0, 3).map((item) => (
-                                            <span key={item.id} className="text-[10px] bg-surface-container px-1.5 py-0.5 rounded text-on-surface-variant font-bold whitespace-nowrap">
+                                            <span key={item.id} className="text-[10px] bg-gray-100 px-2 py-0.5 rounded-md text-[#111827] font-semibold">
                                                 {item.quantity}x {item.item_name}
                                             </span>
                                         ))}
                                         {order.order_items && order.order_items.length > 3 && (
-                                            <span className="text-[10px] text-on-surface-variant font-bold">
+                                            <span className="text-[10px] text-[#6B7280] font-semibold py-0.5">
                                                 +{order.order_items.length - 3} more
                                             </span>
                                         )}
                                     </div>
                                 </div>
-                                <Button size="sm" variant="ghost" className="h-8 w-8 rounded-full p-0 hover:bg-surface-container">
-                                    <ChevronRight className="w-5 h-5 text-on-surface-variant" />
+                                <Button size="sm" variant="ghost" className="h-8 w-8 rounded-full p-0 hover:bg-gray-100 text-[#111827]">
+                                    <ChevronRight className="w-5 h-5 text-[#6B7280]" />
                                 </Button>
                             </div>
                         </div>
