@@ -246,7 +246,7 @@ function MenuContent() {
                         <span className="w-2.5 h-2.5 rounded-full bg-[#FF6B00] animate-pulse" />
                         <div>
                             <p className="text-xs font-black uppercase tracking-wider text-[#FF6B00]">Running Bill Active</p>
-                            <p className="text-xs font-bold text-[#111827]">Table {tableParam || session.table_number} • Add dishes anytime</p>
+                            <p className="text-xs font-bold text-[#111827]">Table {tableParam || session.table_id || '1'} • Add dishes anytime</p>
                         </div>
                     </div>
                     <button
