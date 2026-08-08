@@ -12,8 +12,8 @@ export async function GET(request: Request) {
 
     // Initialize admin client to bypass RLS
     // Fallback to anon key if service role is missing (though RLS bypassing won't work then)
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder'
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseKey)
 
