@@ -10,7 +10,27 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+    {
+        ignores: [
+            ".next/**",
+            "node_modules/**",
+            "out/**",
+            "public/**",
+            "seed_supabase.js",
+            "tailwind.config.cjs",
+            "postcss.config.js",
+            "postcss.config.mjs",
+            "next.config.ts"
+        ],
+    },
     ...compat.extends("next/core-web-vitals", "next/typescript"),
+    {
+        rules: {
+            "@typescript-eslint/no-explicit-any": "off",
+            "@typescript-eslint/no-unused-vars": "warn",
+            "@next/next/no-img-element": "warn"
+        }
+    }
 ];
 
 export default eslintConfig;

@@ -34,6 +34,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
     Dialog,
@@ -47,6 +48,7 @@ import { cn } from '@/lib/utils'
 import { triggerPaymentWebhook } from '@/lib/webhook'
 
 export default function AdminDashboard() {
+    const router = useRouter()
     const [stats, setStats] = useState({
         totalRevenue: 0,
         activeOrders: 0,
@@ -432,6 +434,7 @@ export default function AdminDashboard() {
                         color: "bg-red-500",
                         textColor: "text-red-600",
                         iconBg: "bg-red-100",
+                        link: "/admin/reports"
                     },
                     {
                         title: "Active Orders",
@@ -442,6 +445,7 @@ export default function AdminDashboard() {
                         color: "bg-blue-500",
                         textColor: "text-blue-600",
                         iconBg: "bg-blue-100",
+                        link: "/admin/orders"
                     },
                     {
                         title: "Open Bills",
@@ -452,6 +456,7 @@ export default function AdminDashboard() {
                         color: "bg-amber-500",
                         textColor: "text-amber-600",
                         iconBg: "bg-amber-100",
+                        link: "/admin/orders?tab=open"
                     },
                     {
                         title: "Total Orders",
@@ -462,6 +467,7 @@ export default function AdminDashboard() {
                         color: "bg-purple-500",
                         textColor: "text-purple-600",
                         iconBg: "bg-purple-100",
+                        link: "/admin/orders"
                     },
                     {
                         title: "Customers",
@@ -472,9 +478,14 @@ export default function AdminDashboard() {
                         color: "bg-orange-500",
                         textColor: "text-orange-600",
                         iconBg: "bg-orange-100",
+                        link: "/admin/customers"
                     },
                 ].map((stat, index) => (
-                    <Card key={index} className="touch-card relative group overflow-hidden rounded-[1.35rem] bg-white transition-all duration-300 hover:border-red-500/30 hover:shadow-lg">
+                    <Card 
+                        key={index} 
+                        onClick={() => { if (stat.link) router.push(stat.link) }}
+                        className="touch-card relative group overflow-hidden rounded-[1.35rem] bg-white transition-all duration-300 hover:border-red-500/30 hover:shadow-lg cursor-pointer"
+                    >
                         <div className={`absolute left-0 top-0 bottom-0 w-1 ${stat.color} rounded-l-xl opacity-80 group-hover:opacity-100 transition-opacity`} />
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
                             <CardTitle className="text-xs font-bold text-gray-500 uppercase tracking-wider group-hover:text-red-700 transition-colors">
