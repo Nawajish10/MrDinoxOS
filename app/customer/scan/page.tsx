@@ -10,11 +10,11 @@ function ScanRedirect() {
 
     useEffect(() => {
         const table = searchParams.get('table')
-        // Redirect directly to menu, bypassing phone number check
+        const restaurant = searchParams.get('restaurant') || process.env.NEXT_PUBLIC_RESTAURANT_ID || ''
         if (table) {
-            router.replace(`/customer/menu?table=${table}`)
+            router.replace(`/customer/menu?type=dine_in&restaurant=${restaurant}&table=${table}`)
         } else {
-            router.replace('/customer/menu')
+            router.replace(`/customer/menu?type=dine_in&restaurant=${restaurant}`)
         }
     }, [router, searchParams])
 

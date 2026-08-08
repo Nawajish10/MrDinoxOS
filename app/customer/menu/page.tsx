@@ -45,40 +45,72 @@ function MenuContent() {
 
     // Validate restaurant
     useEffect(() => {
-        if (restaurantParam && restaurant) {
-            const isFallback = restaurant.phone === '0000000000'
-            if (isFallback) {
-                setRestaurantError('Restaurant not found. Please check the QR code and try again.')
-            } else {
-                setRestaurantError(null)
-            }
+        if (restaurant) {
+            setRestaurantError(null)
         }
-    }, [restaurantParam, restaurant])
+    }, [restaurant])
 
     // Validate table
     useEffect(() => {
         if (tableParam && restaurant?.id) {
             const validateTable = async () => {
                 try {
-                    const { data, error } = await supabase
+                    // Try fetching from server API first
+                    const res = await fetch(`/api/tables?restaurantId=${restaurant.id}`)
+                    if (res.ok) {
+                        const data = await res.json()
+                        const tables = data.tables || []
+                        const found = tables.find((t: any) => 
+                            t.id === tableParam || 
+                            t.table_number === Number(tableParam) || 
+                            String(t.table_number) === tableParam
+                        )
+
+                        if (found) {
+                            setTableError(null)
+                            setTableInfo(found.table_number, found.id)
+                            sessionStorage.setItem('restaurantId', restaurant.id)
+                            sessionStorage.setItem('tableId', found.id)
+                            return
+                        }
+                    }
+
+                    // Fallback to Supabase
+                    let query = supabase
                         .from('restaurant_tables')
                         .select('id, table_number')
-                        .eq('id', tableParam)
                         .eq('restaurant_id', restaurant.id)
-                        .single()
 
-                    if (error) throw error
-                    if (!data) {
-                        setTableError('Table not found. Please check the QR code and try again.')
-                    } else {
+                    // If tableParam is a UUID format, query by id, otherwise by table_number
+                    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tableParam)
+                    if (isUUID) {
+                        query = query.eq('id', tableParam)
+                    } else if (!isNaN(Number(tableParam))) {
+                        query = query.eq('table_number', Number(tableParam))
+                    }
+
+                    const { data: dbData, error: dbErr } = await query.maybeSingle()
+
+                    if (dbData) {
                         setTableError(null)
-                        setTableInfo(data.table_number, data.id)
+                        setTableInfo(dbData.table_number, dbData.id)
                         sessionStorage.setItem('restaurantId', restaurant.id)
-                        sessionStorage.setItem('tableId', data.id)
+                        sessionStorage.setItem('tableId', dbData.id)
+                    } else {
+                        // Accept table number directly if number is valid
+                        const num = Number(tableParam)
+                        if (!isNaN(num) && num > 0) {
+                            setTableError(null)
+                            setTableInfo(num, tableParam)
+                            sessionStorage.setItem('restaurantId', restaurant.id)
+                            sessionStorage.setItem('tableId', tableParam)
+                        } else {
+                            setTableError('Table not found. Please check the QR code and try again.')
+                        }
                     }
                 } catch (err) {
                     console.warn('Error validating table:', err)
-                    setTableError('Unable to validate table. Please try again.')
+                    setTableError(null) // Non-blocking
                 }
             }
             validateTable()

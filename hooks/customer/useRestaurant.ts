@@ -8,7 +8,6 @@ export function useRestaurant(restaurantId?: string | null) {
     const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
-        // If no restaurantId provided, use the default from env
         const fetchWithId = async () => {
             const id = restaurantId || process.env.NEXT_PUBLIC_RESTAURANT_ID
             
@@ -19,42 +18,31 @@ export function useRestaurant(restaurantId?: string | null) {
             }
 
             try {
-                const { data, error } = await supabase
+                // 1. Try fetching via server-side API
+                const res = await fetch(`/api/settings?restaurantId=${id}`)
+                if (res.ok) {
+                    const data = await res.json()
+                    if (data.restaurant) {
+                        setRestaurant(data.restaurant)
+                        setError(null)
+                        setLoading(false)
+                        return
+                    }
+                }
+
+                // 2. Fallback to Supabase client
+                const { data, error: dbErr } = await supabase
                     .from('restaurants')
                     .select('*')
                     .eq('id', id)
                     .single()
 
-                if (error) throw error
+                if (dbErr) throw dbErr
                 setRestaurant(data)
+                setError(null)
             } catch (err) {
                 console.warn('Error fetching restaurant:', err)
-                
-                // Graceful fallback for any error - table not found, network error, etc.
-                const fallback: Restaurant = {
-                    id: id,
-                    name: 'Open Bites',
-                    tagline: 'Spicy & Delicious',
-                    phone: '0000000000',
-                    whatsapp_number: null,
-                    email: null,
-                    address: '',
-                    city: 'DemoCity',
-                    logo_url: null,
-                    banner_url: null,
-                    upi_id: null,
-                    upi_qr_url: null,
-                    is_open: true,
-                    tax_percentage: 0,
-                    delivery_charge: 0,
-                    min_order_amount: 0,
-                    avg_preparation_time: 15,
-                    opening_time: '',
-                    closing_time: ''
-                }
-
-                setRestaurant(fallback)
-                setError(null) // Clear error since we have a fallback
+                setError(err instanceof Error ? err.message : 'Failed to load restaurant')
             } finally {
                 setLoading(false)
             }
@@ -65,3 +53,4 @@ export function useRestaurant(restaurantId?: string | null) {
 
     return { restaurant, loading, error }
 }
+
