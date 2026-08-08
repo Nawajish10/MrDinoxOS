@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
+import { getOrSetCached, getCacheKey, deleteByPattern, CACHE_TTL } from '@/lib/cache/cache'
 
 export async function GET(request: Request) {
     try {
@@ -10,16 +11,25 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'restaurantId is required' }, { status: 400 })
         }
 
-        const supabase = getSupabaseAdmin()
-        const { data, error } = await supabase
-            .from('restaurants')
-            .select('*')
-            .eq('id', restaurantId)
-            .single()
+        const cacheKey = getCacheKey(restaurantId, 'settings', 'profile')
 
-        if (error) throw error
+        const restaurant = await getOrSetCached(
+            cacheKey,
+            async () => {
+                const supabase = getSupabaseAdmin()
+                const { data, error } = await supabase
+                    .from('restaurants')
+                    .select('*')
+                    .eq('id', restaurantId)
+                    .single()
 
-        return NextResponse.json({ success: true, restaurant: data })
+                if (error) throw error
+                return data
+            },
+            CACHE_TTL.STATIC_PROFILE // 15 minutes
+        )
+
+        return NextResponse.json({ success: true, restaurant })
     } catch (error: unknown) {
         console.error('API /api/settings GET error:', error)
         return NextResponse.json(
@@ -66,6 +76,10 @@ export async function PUT(request: Request) {
             .single()
 
         if (error) throw error
+
+        // Invalidate settings & profile cache for this restaurant
+        await deleteByPattern(`v1:restaurant:${restaurantId}:settings*`)
+        await deleteByPattern(`v1:restaurant:${restaurantId}:profile*`)
 
         return NextResponse.json({ success: true, restaurant: data })
     } catch (error: unknown) {

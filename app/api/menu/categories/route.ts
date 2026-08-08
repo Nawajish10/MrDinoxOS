@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
+import { getOrSetCached, getCacheKey, deleteByPattern, CACHE_TTL } from '@/lib/cache/cache'
 
 export async function GET(request: Request) {
     try {
@@ -10,16 +11,26 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'restaurantId is required' }, { status: 400 })
         }
 
-        const supabase = getSupabaseAdmin()
-        const { data, error } = await supabase
-            .from('menu_categories')
-            .select('*')
-            .eq('restaurant_id', restaurantId)
-            .order('sort_order', { ascending: true })
+        const cacheKey = getCacheKey(restaurantId, 'categories', 'all')
 
-        if (error) throw error
+        const categories = await getOrSetCached(
+            cacheKey,
+            async () => {
+                const supabase = getSupabaseAdmin()
+                const { data, error } = await supabase
+                    .from('menu_categories')
+                    .select('*')
+                    .eq('restaurant_id', restaurantId)
+                    .is('deleted_at', null)
+                    .order('sort_order', { ascending: true })
 
-        return NextResponse.json({ success: true, categories: data || [] })
+                if (error) throw error
+                return data || []
+            },
+            CACHE_TTL.MENU // 10 minutes
+        )
+
+        return NextResponse.json({ success: true, categories })
     } catch (error: unknown) {
         console.error('API /api/menu/categories GET error:', error)
         return NextResponse.json(
@@ -48,6 +59,7 @@ export async function POST(request: Request) {
             description: body.description || null,
             sort_order: Number(body.sort_order) || 0,
             is_active: body.is_active !== undefined ? Boolean(body.is_active) : true,
+            deleted_at: null,
         }
 
         const supabase = getSupabaseAdmin()
@@ -58,6 +70,10 @@ export async function POST(request: Request) {
             .single()
 
         if (error) throw error
+
+        // Invalidate categories & menu cache for this restaurant
+        await deleteByPattern(`v1:restaurant:${restaurantId}:categories*`)
+        await deleteByPattern(`v1:restaurant:${restaurantId}:menu*`)
 
         return NextResponse.json({ success: true, category: data }, { status: 201 })
     } catch (error: unknown) {
@@ -83,6 +99,7 @@ export async function PUT(request: Request) {
         if (updates.description !== undefined) updatePayload.description = updates.description
         if (updates.sort_order !== undefined) updatePayload.sort_order = Number(updates.sort_order)
         if (updates.is_active !== undefined) updatePayload.is_active = Boolean(updates.is_active)
+        updatePayload.updated_at = new Date().toISOString()
 
         const supabase = getSupabaseAdmin()
         const { data, error } = await supabase
@@ -93,6 +110,12 @@ export async function PUT(request: Request) {
             .single()
 
         if (error) throw error
+
+        const restaurantId = data.restaurant_id || process.env.NEXT_PUBLIC_RESTAURANT_ID
+        if (restaurantId) {
+            await deleteByPattern(`v1:restaurant:${restaurantId}:categories*`)
+            await deleteByPattern(`v1:restaurant:${restaurantId}:menu*`)
+        }
 
         return NextResponse.json({ success: true, category: data })
     } catch (error: unknown) {
@@ -114,14 +137,22 @@ export async function DELETE(request: Request) {
         }
 
         const supabase = getSupabaseAdmin()
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('menu_categories')
-            .delete()
+            .update({ is_active: false, deleted_at: new Date().toISOString() })
             .eq('id', id)
+            .select('restaurant_id')
+            .single()
 
         if (error) throw error
 
-        return NextResponse.json({ success: true, message: 'Category deleted successfully' })
+        const restaurantId = data?.restaurant_id || process.env.NEXT_PUBLIC_RESTAURANT_ID
+        if (restaurantId) {
+            await deleteByPattern(`v1:restaurant:${restaurantId}:categories*`)
+            await deleteByPattern(`v1:restaurant:${restaurantId}:menu*`)
+        }
+
+        return NextResponse.json({ success: true, message: 'Category deleted' })
     } catch (error: unknown) {
         console.error('API /api/menu/categories DELETE error:', error)
         return NextResponse.json(

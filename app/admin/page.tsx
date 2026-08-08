@@ -85,6 +85,28 @@ export default function AdminDashboard() {
 
     const fetchDashboardData = useCallback(async (currentRange: 'today' | 'week' | 'month' = 'today') => {
         try {
+            setLoading(true)
+            // 1. Try server cached stats API
+            const res = await fetch(`/api/dashboard/stats?restaurantId=${RESTAURANT_ID}&range=${currentRange}`)
+            if (res.ok) {
+                const data = await res.json()
+                if (data.stats) {
+                    setStats(prev => ({
+                        ...prev,
+                        totalRevenue: data.stats.totalRevenue,
+                        activeOrders: data.stats.activeOrders,
+                        openBills: data.stats.openBills,
+                        servedWaitingPayment: data.stats.servedWaitingPayment,
+                        totalOrders: data.stats.totalOrders,
+                        totalCustomers: data.stats.totalCustomers,
+                    }))
+                    setRecentOrders(data.stats.recentOrders || [])
+                    setLoading(false)
+                    return
+                }
+            }
+
+            // 2. Direct database fallback
             const now = new Date()
             let startDate = startOfDay(now)
             const todayEnd = endOfDay(now)
@@ -131,31 +153,40 @@ export default function AdminDashboard() {
                 .select('*', { count: 'exact', head: true })
                 .eq('restaurant_id', RESTAURANT_ID)
                 .eq('status', 'served')
-                .eq('payment_status', 'pending')
+                .neq('payment_status', 'paid')
 
-            // Fetch Total Orders in Range
+            // Fetch Total Orders
             const { count: totalOrders } = await supabase
                 .from('orders')
                 .select('*', { count: 'exact', head: true })
                 .eq('restaurant_id', RESTAURANT_ID)
+                .neq('status', 'cancelled')
                 .gte('created_at', todayStart)
                 .lte('created_at', rangeEnd)
 
-            // Fetch Total Customers (All time)
+            // Fetch Customers
             const { count: totalCustomers } = await supabase
                 .from('customers')
                 .select('*', { count: 'exact', head: true })
                 .eq('restaurant_id', RESTAURANT_ID)
 
-            setStats(prev => ({
-                ...prev,
+            // Fetch Recent Orders with Customer Info
+            const { data: recentOrdersData } = await supabase
+                .from('orders')
+                .select('*, customers(name, phone, address), order_items(*)')
+                .eq('restaurant_id', RESTAURANT_ID)
+                .order('created_at', { ascending: false })
+                .limit(5)
+
+            setStats({
                 totalRevenue,
                 activeOrders: activeOrders || 0,
                 openBills: openBills || 0,
                 servedWaitingPayment: servedWaitingPayment || 0,
                 totalOrders: totalOrders || 0,
                 totalCustomers: totalCustomers || 0,
-            }))
+                peakHours: [],
+            })
 
             // Fetch Recent Orders
             const { data: recent } = await supabase

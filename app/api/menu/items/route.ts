@@ -1,32 +1,42 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
+import { getOrSetCached, getCacheKey, deleteByPattern, CACHE_TTL } from '@/lib/cache/cache'
 
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url)
         const restaurantId = searchParams.get('restaurantId') || process.env.NEXT_PUBLIC_RESTAURANT_ID
-        const categoryId = searchParams.get('categoryId')
+        const categoryId = searchParams.get('categoryId') || 'all'
 
         if (!restaurantId) {
             return NextResponse.json({ error: 'restaurantId is required' }, { status: 400 })
         }
 
-        const supabase = getSupabaseAdmin()
-        let query = supabase
-            .from('menu_items')
-            .select('*, menu_categories(name)')
-            .eq('restaurant_id', restaurantId)
-            .order('name', { ascending: true })
+        const cacheKey = getCacheKey(restaurantId, 'menu', categoryId)
 
-        if (categoryId && categoryId !== 'all') {
-            query = query.eq('category_id', categoryId)
-        }
+        const items = await getOrSetCached(
+            cacheKey,
+            async () => {
+                const supabase = getSupabaseAdmin()
+                let query = supabase
+                    .from('menu_items')
+                    .select('*, menu_categories(name)')
+                    .eq('restaurant_id', restaurantId)
+                    .is('deleted_at', null)
+                    .order('name', { ascending: true })
 
-        const { data, error } = await query
+                if (categoryId && categoryId !== 'all') {
+                    query = query.eq('category_id', categoryId)
+                }
 
-        if (error) throw error
+                const { data, error } = await query
+                if (error) throw error
+                return data || []
+            },
+            CACHE_TTL.MENU // 10 minutes
+        )
 
-        return NextResponse.json({ success: true, items: data || [] })
+        return NextResponse.json({ success: true, items })
     } catch (error: unknown) {
         console.error('API /api/menu/items GET error:', error)
         return NextResponse.json(
@@ -71,6 +81,7 @@ export async function POST(request: Request) {
             serves: body.serves || '1',
             stock: body.is_infinite_stock ? null : (body.stock !== undefined && body.stock !== '' && body.stock !== null ? Number(body.stock) : null),
             is_infinite_stock: Boolean(body.is_infinite_stock),
+            deleted_at: null,
         }
 
         const supabase = getSupabaseAdmin()
@@ -81,6 +92,9 @@ export async function POST(request: Request) {
             .single()
 
         if (error) throw error
+
+        // Invalidate menu cache
+        await deleteByPattern(`v1:restaurant:${restaurantId}:menu*`)
 
         return NextResponse.json({ success: true, item: data }, { status: 201 })
     } catch (error: unknown) {
@@ -102,12 +116,12 @@ export async function PUT(request: Request) {
         }
 
         const updatePayload: Record<string, unknown> = {}
-        if (updates.category_id !== undefined) updatePayload.category_id = updates.category_id || null
         if (updates.name !== undefined) updatePayload.name = updates.name.trim()
         if (updates.description !== undefined) updatePayload.description = updates.description
         if (updates.price !== undefined) updatePayload.price = Number(updates.price)
         if (updates.discounted_price !== undefined) updatePayload.discounted_price = updates.discounted_price ? Number(updates.discounted_price) : null
         if (updates.image_url !== undefined) updatePayload.image_url = updates.image_url
+        if (updates.category_id !== undefined) updatePayload.category_id = updates.category_id
         if (updates.is_veg !== undefined) updatePayload.is_veg = Boolean(updates.is_veg)
         if (updates.is_bestseller !== undefined) updatePayload.is_bestseller = Boolean(updates.is_bestseller)
         if (updates.is_new !== undefined) updatePayload.is_new = Boolean(updates.is_new)
@@ -116,16 +130,9 @@ export async function PUT(request: Request) {
         if (updates.is_available !== undefined) updatePayload.is_available = Boolean(updates.is_available)
         if (updates.preparation_time !== undefined) updatePayload.preparation_time = Number(updates.preparation_time)
         if (updates.serves !== undefined) updatePayload.serves = updates.serves
-        if (updates.is_infinite_stock !== undefined) {
-            updatePayload.is_infinite_stock = Boolean(updates.is_infinite_stock)
-            if (updates.is_infinite_stock) {
-                updatePayload.stock = null
-            } else if (updates.stock !== undefined) {
-                updatePayload.stock = updates.stock !== '' && updates.stock !== null ? Number(updates.stock) : null
-            }
-        } else if (updates.stock !== undefined) {
-            updatePayload.stock = updates.stock !== '' && updates.stock !== null ? Number(updates.stock) : null
-        }
+        if (updates.stock !== undefined) updatePayload.stock = updates.is_infinite_stock ? null : (updates.stock !== '' && updates.stock !== null ? Number(updates.stock) : null)
+        if (updates.is_infinite_stock !== undefined) updatePayload.is_infinite_stock = Boolean(updates.is_infinite_stock)
+        updatePayload.updated_at = new Date().toISOString()
 
         const supabase = getSupabaseAdmin()
         const { data, error } = await supabase
@@ -136,6 +143,11 @@ export async function PUT(request: Request) {
             .single()
 
         if (error) throw error
+
+        const restaurantId = data?.restaurant_id || process.env.NEXT_PUBLIC_RESTAURANT_ID
+        if (restaurantId) {
+            await deleteByPattern(`v1:restaurant:${restaurantId}:menu*`)
+        }
 
         return NextResponse.json({ success: true, item: data })
     } catch (error: unknown) {
@@ -157,14 +169,21 @@ export async function DELETE(request: Request) {
         }
 
         const supabase = getSupabaseAdmin()
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('menu_items')
-            .delete()
+            .update({ is_available: false, deleted_at: new Date().toISOString() })
             .eq('id', id)
+            .select('restaurant_id')
+            .single()
 
         if (error) throw error
 
-        return NextResponse.json({ success: true, message: 'Item deleted successfully' })
+        const restaurantId = data?.restaurant_id || process.env.NEXT_PUBLIC_RESTAURANT_ID
+        if (restaurantId) {
+            await deleteByPattern(`v1:restaurant:${restaurantId}:menu*`)
+        }
+
+        return NextResponse.json({ success: true, message: 'Menu item deleted' })
     } catch (error: unknown) {
         console.error('API /api/menu/items DELETE error:', error)
         return NextResponse.json(

@@ -1,78 +1,37 @@
-import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+'use client'
+
+import { useRestaurantQuery } from './useCustomerData'
 import { Restaurant } from '@/types'
 
 export function useRestaurant(restaurantId?: string | null) {
-    const [restaurant, setRestaurant] = useState<Restaurant | null>(null)
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
+    const rId = restaurantId || process.env.NEXT_PUBLIC_RESTAURANT_ID || ''
+    const { data: restaurantData, isLoading, error: queryError } = useRestaurantQuery(rId)
 
-    useEffect(() => {
-        const fetchWithId = async () => {
-            const id = restaurantId || process.env.NEXT_PUBLIC_RESTAURANT_ID
-            
-            if (!id) {
-                setLoading(false)
-                setError('Restaurant ID is required')
-                return
-            }
+    const fallback: Restaurant = {
+        id: rId || 'da8efec5-6168-4dc7-a2ec-0739c0e691f3',
+        name: 'Demo Restaurant',
+        tagline: 'Fresh & Tasty',
+        phone: '+910000000000',
+        whatsapp_number: null,
+        email: null,
+        address: 'Demo Address',
+        city: 'DemoCity',
+        logo_url: null,
+        banner_url: null,
+        upi_id: null,
+        upi_qr_url: null,
+        is_open: true,
+        tax_percentage: 0,
+        delivery_charge: 0,
+        min_order_amount: 0,
+        avg_preparation_time: 15,
+        opening_time: '',
+        closing_time: '',
+    }
 
-            try {
-                // 1. Try fetching via server-side API
-                const res = await fetch(`/api/settings?restaurantId=${id}`)
-                if (res.ok) {
-                    const data = await res.json()
-                    if (data.restaurant) {
-                        setRestaurant(data.restaurant)
-                        setError(null)
-                        setLoading(false)
-                        return
-                    }
-                }
-
-                // 2. Fallback to Supabase client
-                const { data, error: dbErr } = await supabase
-                    .from('restaurants')
-                    .select('*')
-                    .eq('id', id)
-                    .single()
-
-                if (dbErr) throw dbErr
-                setRestaurant(data)
-                setError(null)
-            } catch (err) {
-                console.warn('Error fetching restaurant:', err)
-                const fallback: Restaurant = {
-                    id: id,
-                    name: 'Demo Restaurant',
-                    tagline: 'Fresh & Tasty',
-                    phone: '+910000000000',
-                    whatsapp_number: null,
-                    email: null,
-                    address: 'Demo Address',
-                    city: 'DemoCity',
-                    logo_url: null,
-                    banner_url: null,
-                    upi_id: null,
-                    upi_qr_url: null,
-                    is_open: true,
-                    tax_percentage: 0,
-                    delivery_charge: 0,
-                    min_order_amount: 0,
-                    avg_preparation_time: 15,
-                    opening_time: '',
-                    closing_time: ''
-                }
-                setRestaurant(fallback)
-                setError(null)
-            } finally {
-                setLoading(false)
-            }
-        }
-
-        fetchWithId()
-    }, [restaurantId])
-
-    return { restaurant, loading, error }
+    return {
+        restaurant: restaurantData || fallback,
+        loading: isLoading,
+        error: queryError ? (queryError as Error).message : null,
+    }
 }
-
